@@ -1,8 +1,77 @@
 ---
-title: "Assignment1"
+title: 'PSYC 6136: Assignment 1'
 author: "Gavin Klorfine"
 date: "`r Sys.Date()`"
-output: pdf_document
+output:
+  pdf_document: default
 ---
 
-BLAH
+```{r setup, include=FALSE}
+library("here")
+library("vcdExtra")
+options(rgl.useNULL = TRUE)
+```
+
+# DDAR Exercise 1.1
+## a) *"Examine a number of recent issues of a scientific or statistical journal in which you have some interest. Find one or more examples of a graph or table that is a particularly bad use of display material to summarize and communicate research findings. Write a few sentences indicating how or why the display fails and how it could be improved."*
+
+```{r echo=FALSE, out.width = "450pt", out.height = "304.5pt", fig.align = "center"}
+knitr::include_graphics("/Users/gklorfine/Desktop/School/Graduate/MA/Winter 2026/PSYC6136 Categorical/6136catego/images/badgraph.jpg")
+```
+
+Retrieved from: https://doi.org/10.1155/2022/3802603
+
+This graph published in *Advances in Materials Science and Engineering* in 2022
+attempts to depict the selectivity of a biosensor with several enzymes interfering.
+From the text, it is not clear what this graph attempts to show and why "pink"
+deviates from the rest of the enzymes. Additionally, "pink" and "blank" are not
+enzymes. An *x*-axis label would help to clear the confusion regarding "pink"
+and "blank." Furthermore, the "error bars" are actually the letter "T"
+superimposed on the graph. Authors should have used a statistical measure of 
+uncertainty (e.g., standard error) to construct proper error bars. Last, the
+graph would benefit from a title and a better explanation in the figure caption
+(as is, the caption simply reads "Selectivity of the analytical method.").
+
+
+# DDAR Exercise 1.2
+## *"As in the previous exercise, examine the recent literature in recent issues of some journal of interest to you. Find one or more examples of a graph or table that you feel does a good job of summarizing and communicating research findings."*
+
+```{r echo=FALSE, out.width = "379pt", out.height = "320pt", fig.align = "center"}
+knitr::include_graphics("/Users/gklorfine/Desktop/School/Graduate/MA/Winter 2026/PSYC6136 Categorical/6136catego/images/goodgraph.png")
+```
+
+Retrieved from: https://doi.org/10.1037/neu0001058
+
+## a) *"Write a few sentences describing why you chose these displays."*
+
+This graph published in *Neuropsychology* in 2025 shows how a participant's
+ability to recall a word changes depending on both the position of the word in a
+list and whether the language was his/her dominant or non-dominant. From the
+graph, primacy and recency effects on recall are indicated through the higher
+recall proportion for the first few and last few words in the list, with the
+minimum recall proportion being located near the middle of the list. We may
+also see that recall proportion is higher if the words were in the participant's
+dominant language. A proper title and axes labels were included.
+
+## b) *"Now take the role of a tough journal reviewer. Are there any features of the display that could be modified to make them more effective?"*
+
+This graph can be modified to directly label the dominant and non-dominant 
+curves with text, as opposed to the inclusion of a legend. It might also
+benefit from a figure caption to assist the reader in quickly understanding
+the information conveyed.
+
+# DDAR Exercise 2.2
+## *"For each of the following data sets in the vcdExtra package, identify which are response variable(s) and which are explanatory. For factor variables, which are unordered (nominal) and which should be treated as ordered? Write a sentence or two describing substantitive questions of interest for analysis of the data. (Hint: use data(foo, package="vcdExtra") to load, and str(foo), help(foo) to examine data set foo.)"*
+
+## a) *"Abortion opinion data"*
+
+```{r abortion}
+data(Abortion, package="vcdExtra")
+?Abortion
+```
+1. `Support_Abortion` is a nominal response variable
+1. `Status` is 
+1. tttttt
+1. rtrrtwrtes
+
+
