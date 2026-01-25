@@ -1,0 +1,271 @@
+---
+title: "GavinKlorfine--Assign2"
+author: "Gavin Klorfine"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,   # avoid warnings and messages in the output
+  message = FALSE,
+  fig.height = 5,    # set default figure size
+  fig.width = 6.5
+)
+options(rgl.useNULL = TRUE)
+library(vcdExtra)
+library(dplyr)
+library(xtable)
+library(ggplot2)
+
+#' My R package with my ggplot theme function; I have included the function 
+#' below so you are able to run this on your system
+library(gklo)
+```
+
+```{r function, include=FALSE}
+gavinTheme <- function(){
+   #' gavinTheme
+   #'
+   #' Theme for ggplot2 graphs.
+   #'
+   #' Used by adding to existing ggplot2 object.
+   #' @examples
+      #' ggplot(...) + gavinTheme()
+
+   theme_minimal() +
+   theme(
+      plot.title = element_text(hjust = .5, margin = margin(b = 10)),
+      axis.ticks = element_line(colour = "black", size =.5),
+      axis.line = element_line(colour = "black", size = .5),
+      axis.text = element_text(size = 10),
+      axis.title.x = element_text(margin = margin(t = 10)),
+      axis.title.y = element_text(margin = margin(r = 10)),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank()
+   )
+}
+```
+
+# DDAR Exercise 2.3
+
+*The data set `UCBAdmissions` is a 3-way table of frequencies classified by `Admit`, `Gender`, and `Dept`.*
+
+**(a)** *Find the total number of cases contained in this table.*
+```{r 2.3a}
+data("UCBAdmissions")
+
+sum(UCBAdmissions)
+```
+
+**(b)** *For each department, find the total number of applicants*
+```{r 2.3b}
+ucb <- as.data.frame(UCBAdmissions)
+
+totals <- (
+  ucb |> 
+  group_by(Dept) |> 
+  summarize(s = sum(Freq))
+)
+
+totals
+```
+
+**(c)** *For each department, find the overall proportion of applicants who were admitted*
+```{r 2.3c}
+admsns <- (
+  ucb |>
+  group_by(Dept, Admit) |>
+  filter(Admit == "Admitted") |>
+  summarize(admit_freq = sum(Freq))
+)
+
+admsns$total_freq <- totals$s
+admsns$ovr_prop <- admsns$admit_freq / admsns$total_freq
+admsns |> select(Dept, ovr_prop)
+```
+
+**(d)** *Construct a tabular display of department (rows) and gender (columns) showing the proportion of applicants in each cell who were admitted relative to the total applicants in that cell*
+```{r 2.3d, results='asis'}
+berk_tab <- (
+  prop.table(UCBAdmissions, c("Dept", "Gender"))
+)
+
+berk_tab <- berk_tab["Admitted",,] |> t() |> xtable()
+caption(berk_tab) <- "Proportion of admitted applicants by department and gender using the UCBAdmissions dataset."
+berk_tab
+```
+
+# DDAR Exercise 3.1
+
+*The `Arbuthnot` data in HistData (Example 3.1) also contains the variable `Ratio`, giving the ratio of male to female births.*
+
+**(a)** *Make a plot of `Ratio` over `Year`, similar to Figure 3.1. What features stand out? Which plot do you prefer to display the tendency for more male births?*
+```{r 3.1a}
+# Code adapted from Friendly & Meyer (2016; p. 67), Discrete Data Analysis with R
+
+data("Arbuthnot", package= "HistData")
+
+with(Arbuthnot, {
+   plot(x = Year, y = Ratio, type= "b",
+   ylim= c(1.0, 1.17), main = "Arbuthnot's Data on Sex Ratios in London",
+   ylab= "Ratio of Males:Females")
+   abline(h= 1.0, col= "red", lwd= 2)
+   abline(h= mean(Ratio), col= "blue")
+   lines(loess.smooth(Year, Ratio), col= "blue", lwd= 2)
+   text(x = 1660, y= 1.0, expression(H[0]: "# Male Christenings = # Female Christenings"),
+   pos= 3, col= "red")
+})
+```
+
+Features that stand out include no points dipping below 1.0, the value expected if there were an equal number of males and females christened. The average ratio of males:females christened from `r min(Arbuthnot$Year)` to `r max(Arbuthnot$Year)` was `r round(mean(Arbuthnot$Ratio), 3)`; this average ratio tended to be larger from `r min(Arbuthnot$Year)` to ~1670 (ratio = `r round(mean(Arbuthnot$Ratio[Arbuthnot$Year < 1670]), 3)`), whereas it tended to be smaller from ~1670 to `r max(Arbuthnot$Year)` (ratio = `r round(mean(Arbuthnot$Ratio[Arbuthnot$Year > 1670]), 3)`). Despite these fluctuations, the ratio remained near the mean, indicating a consistent trend of more male births than female births.
+
+I prefer the plot in Figure 3.1 as it better represents the underlying process (i.e., births as Bernoulli trials where there is a probability that the child will be male). Probabilities rather than ratios also allow for modelling via a binomial distribution.
+
+**(b)** *Plot the total number of christenings, Males + Females or Total (in 000s) over time. What unusual features do you see?*
+```{r 3.1b}
+# Code adapted from Friendly & Meyer (2016; p. 67), Discrete Data Analysis with R
+
+data("Arbuthnot", package= "HistData")
+
+with(Arbuthnot, {
+   plot(x = Year, y = Total, type= "b",
+   ylim= c(0, 17), main = "Arbuthnot's Data on Total Number of Christenings in London",
+   ylab= "Total Number of Christenings (in Thousands)")
+   abline(h= mean(Total), col= "blue")
+   lines(loess.smooth(Year, Total), col= "blue", lwd= 2)
+})
+```
+
+An unusual feature is that of the data between ~1645 and 1660, as they form a trough in what would otherwise be a steady increase in total christenings. Furthermore, the descent into the trough is somewhat gradual, occurring over ~10 years, whereas the ascent from the trough is quick and occurs over ~5 years.
+
+There is also a data point near ~1705 that seems atypical, as the number of christenings is a few thousand less than the surrounding data points (i.e., 12,000 as compared to a typical value of 15,000 for the previous 20 years).
+
+
+# DDAR Exercise 3.3
+
+*Use the data set `WomenQueue` to:*
+
+**(a)** *Produce plots analogous to those shown in Section 3.1 (some sort of bar graph of frequencies).*
+
+```{r 3.3a, fig.height = 4}
+data("WomenQueue")
+wq <- as.data.frame(WomenQueue)
+
+ggplot(wq, aes(x = nWomen, y = Freq)) +
+  geom_bar(
+    stat ="sum",
+    fill = "steelblue",
+    color = "black"
+  ) +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = c(0, 0)) +
+  labs(
+    title = "Number of Women in 100 10-Person Queues",
+    x = "Number of Women in Queue",
+    y = "Frequency"
+  ) +
+  gavinTheme()
+```
+
+**(b)** *Check for goodness-of-fit to the binomial distribution using the `goodfit()` methods described in Section 3.3.2.*
+
+```{r 3.3b_stand}
+wq_fit <- goodfit(WomenQueue, type = "binomial")
+summary(wq_fit)
+
+plot(wq_fit, type="standing", 
+     main = "Women Queue Data, Fitting a Binomial Model",
+     xlab = "Number of Women in Queue"
+)
+```
+
+```{r 3.3b_hang}
+plot(wq_fit, type="hanging", shade = TRUE,
+     main = "Women Queue Data, Fitting a Binomial Model",
+     xlab = "Number of Women in Queue"
+)
+```
+
+```{r 3.3b_dev}
+plot(wq_fit, type="deviation", shade = TRUE,
+     main = "Women Queue Data, Fitting a Binomial Model",
+     xlab = "Number of Women in Queue"
+)
+```
+
+Due to a non-significant *p* value and no residuals exceeding $\pm \: 2$, $\text{Bin}(10, `r unlist(wq_fit$par)[1]`)$ can be considered a good fit for the data.
+
+**(c)** *Make a reasonable plot showing departure from the binomial distribution.*
+
+```{r 3.3c, fig.height = 6}
+distplot(
+  WomenQueue, 
+  type = "binomial",
+  xlab = "Number of Women in Queue",
+  main = "Binomialness plot: WomenQueue data"
+)
+```
+
+**(d)** *Suggest some reasons why the number of women in queues of length 10 might depart from a binomial distribution,* $\text{Bin}(n=10, p=1/2)$
+
+Because the true probability of selecting a woman from a queue of 10 may differ from $p = 1/2$ (in the place and time data was collected). Perhaps there were more men taking the subway or there were more men in London, generally.
+
+# DDAR Exercise 3.4
+*Continue Example 3.13 on the distribution of male children in families in Saxony by fitting a binomial distribution,* $\text{Bin}(n = 12, p = \frac{1}{2})$*, specifying equal probability for boys and girls. [Hint: you need to specify both `size` and `prob` values for `goodfit()`.]*
+
+**(a)** *Carry out the GOF test for this fixed binomial distribution. What is the ratio of $\chi^2 / df$? What do you conclude?*
+
+```{r 3.4a}
+data("Saxony")
+
+# GOF test
+sax_fit <- goodfit(
+  Saxony, 
+  type = "binomial",
+  par = list(size = 12, prob = 0.5)
+)
+sum_sax <- summary(sax_fit)
+
+# Ratio of chisq/df
+(chi_df <- sum_sax["Pearson", "X^2"] / sum_sax["Pearson", "df"])
+```
+
+I conclude that $\text{Bin}(n = 12, p = \frac{1}{2})$ is a significantly bad fit to the `Saxony` data, $\chi^2(`r sum_sax["Pearson", "df"]`) = `r round(sum_sax["Pearson", "X^2"], 3)`$, $p < .001$. Furthermore, the ratio of $\chi^2 / df = `r round(chi_df, 3)`$ is substantially greater than 1, which would be the expected value under the null hypothesis of acceptable fit.
+
+**(b)** *Test the additional lack of fit for the model* $\text{Bin}(n = 12, p = \frac{1}{2})$ *compared to the model* $\text{Bin}(n = 12, p = \hat{p})$ *where* $\hat{p}$ *is estimated from the data.*
+
+```{r 3.4b}
+sax_fit_phat <- goodfit(
+  Saxony, 
+  type = "binomial",
+  par = list(size = 12)
+)
+sum_sax_phat <- summary(sax_fit_phat)
+
+phat <- unlist(sax_fit_phat$par)["prob"]
+```
+
+While the likelihood ratio improved (i.e., lowered) by estimating $\hat{p}$ from the data ($G^2_{\hat{p} = `r round(phat,3)`}(`r sum_sax_phat["Likelihood Ratio", "df"]`) = `r round(sum_sax_phat["Likelihood Ratio","X^2"], 2)`$ versus $G^2_{p = 0.5}(`r sum_sax["Likelihood Ratio", "df"]`) = `r round(sum_sax["Likelihood Ratio","X^2"], 2)`$), there was still a significant departure from the null hypothesis of good fit (*p* < .001), meaning that $\text{Bin}(n = 12, \hat{p} = `r round(phat, 3)`)$ is still a very bad fit for the `Saxony` data.
+
+**(c)** *Use the `plot.goodfit()` method to visualize these two models.*
+
+```{r 3.4c}
+plot(
+  sax_fit, 
+  type = "deviation",
+  shade = TRUE,
+  main = "Saxony Data, Fitting Bin(n = 12, p = 1/2)",
+  xlab = "Number of Males"
+)   # 3.4a
+
+plot(
+  sax_fit_phat,
+  type = "deviation",
+  shade = TRUE,
+  main = paste0("Saxony Data, Fitting Bin(n = 12, p = ", round(phat, 2), ")"),
+  xlab = "Number of Males"
+)   # 3.4b
+```
+
+
