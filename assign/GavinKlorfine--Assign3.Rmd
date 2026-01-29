@@ -21,6 +21,7 @@ library(vcdExtra)
 # DDAR Exercise 4.2
 
 *The data set Abortion in vcdExtra gives a 2 $\times$ 2 $\times$ 2 table of opinions regarding abortion in relation to sex and status of the respondent. This table has the following structure:*
+
 ```{r 4.2example}
 data("Abortion", package = "vcdExtra")
 str(Abortion)
@@ -76,6 +77,57 @@ The association was significant ($\chi^2 (`r hosp_stat$chisq_tests["Pearson", "d
 ```{r 4.4c}
 assoc(Hospital, shade = TRUE)
 ```
+
+The association plot depicts that those with more frequent visits to the hospital have a lower length of stay than would be expected under independence. Conversely, those with less frequent visits to the hospital have a greater length of stay than would be expected under independence.
+
+**(d)** *Both variables can be considered ordinal, so `CMHtest()` may be useful here. Carry out that analysis. Do any of the tests lead to different conclusions?*
+
+```{r 4.4d}
+CMHtest(Hospital)
+```
+
+No, the tests all lead to the conclusion that there is a significant departure from independence in the visit frequency and length of stay variables.
+
+**(e)** *Try one or more of the following other functions for visualizing two-way contingency tables with this data: `plot()`, `tile()`, `mosaic()`, and `spineplot()`. [For all except `spineplot()`, it is useful to include the argument `shade=TRUE`].*
+
+```{r 4.4e}
+plot(Hospital, shade = TRUE)
+spineplot(Hospital, shade = TRUE)
+```
+
+**(f)** *Comment on the differences among these displays for understanding the relation between visits and length of stay.*
+
+These displays show the same pattern of association depicted in question 4.4c. The mosaic display is easier to read at first glance because of the shading.
+
+
+# DDAR Exercise 4.6
+
+*The two-way table `Mammograms` in vcdExtra gives ratings on the severity of diagnosis of 110 mammograms by two raters.*
+
+**(a)** *Assess the strength of agreement between the raters using Cohen’s $\kappa$, both unweighted and weighted.*
+
+```{r 4.6a}
+data("Mammograms")
+(kaps <- Kappa(Mammograms))
+```
+
+Since $\kappa$ ranges from 0 to 1, both the unweighted $\kappa = `r kaps$Unweighted["value"] |> round(3)`$ and the weighted $\kappa = `r kaps$Weighted["value"]`$ indicate moderate to moderately strong agreement between raters.
+
+**(b)** *Use `agreementplot()` for a graphical display of agreement here.*
+
+```{r 4.6b, fig.height=6, fig.width=6}
+agreementplot(Mammograms)
+```
+
+**(c)** *Compare the Kappa measures with the results from `assocstats()`. What is a reasonable interpretation of each of these measures?*
+
+```{r 4.6c}
+assocstats(Mammograms)
+```
+
+The results from `assocstats()` indicate a significant departure from independence, with Cramer's V indicating a strong association between raters. This makes sense, as the Kappa measures indicate substantial agreement (and thus, association) between raters.
+
+
 
 
 
