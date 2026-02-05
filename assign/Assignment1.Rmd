@@ -1,7 +1,7 @@
 ---
 title: 'PSYC 6136: Assignment 1'
 author: "Gavin Klorfine"
-date: "`r Sys.Date()`"
+date: "2026-01-09"
 output:
   pdf_document: default
 ---
