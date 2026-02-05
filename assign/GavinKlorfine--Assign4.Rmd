@@ -1,0 +1,207 @@
+---
+title: "GavinKlorfine--Assign4"
+author: "Gavin Klorfine"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,   # avoid warnings and messages in the output
+  message = FALSE,
+  fig.height = 5,    # set default figure size
+  fig.width = 6.5
+)
+
+library(MASS)
+library(logmult)
+library(ggplot2)
+library(dplyr)
+library(gklo) # For my gavinTheme() ggplot2 theme. Function included in Appendix
+library(vcd)
+options(rgl.useNULL = TRUE)
+library(vcdExtra)
+```
+
+# DDAR Exercise 5.1
+
+### *The data set* `criminal` *in the package* \textsf{logmult} *gives the* $4 \times 5$ *table below of the number of men aged 15–19 charged with a criminal case for whom charges were dropped in Denmark from 1955–1958.*
+
+## Part (a)
+
+### *Use* `loglm()` *to test whether there is an association between* `Year` *and* `Age`*. Is there evidence that dropping of charges in relation to age changed over the years recorded here?*
+
+```{r 5.1a}
+data("criminal", package = "logmult")
+
+(mod_ageYr <- loglm(~Age + Year, data = criminal))
+```
+
+Due to a significant departure from independence, $\chi^2(`r mod_ageYr$df`) = `r round(mod_ageYr$pearson, 2)`$, $p < .001$, there is evidence that dropping of charges in relation to age changed over the years recorded.
+
+## Part (b)
+
+### *Use* `mosaic()` *with the option* `shade=TRUE` *to display the pattern of signs and magnitudes of the residuals. Compare this with the result of* `mosaic()` *using “Friendly shading,” from the option* `gp=shading_Friendly`*. Describe verbally what you see in each regarding the pattern of association in this table.*
+
+```{r 5.1b}
+def_shade <- mosaic(criminal, shade = TRUE, 
+                    main ="Criminal Data, Default Shading")
+mf_shade <- mosaic(criminal, shade = TRUE, gp = shading_Friendly, 
+                   main = "Criminal Data, Friendly Shading")
+```
+
+Since most of the residuals lie within the interval $\pm 2$, the default shading scheme does not readily depict a clear pattern regarding cells' relative contributions to the overall $\chi^2$ statistic. In contrast, the mosaic plot with the Friendly shading scheme reveals the sign of cells within the interval $\pm 2$, and consequently, a diagonal pattern of positive residuals. The interpretation here may be that as year (1955-1958) increases, men of younger age (from the interval 15-19) have larger than expected (under independence) frequencies of charges being dropped.
+
+
+# DDAR Exercise 5.4
+
+### *A related analysis concerns differences in throwing handedness among baseball players according to the fielding position they play. The following code calculates such a frequency table.*
+
+```{r 5.4setup}
+library(Lahman)
+# NOTE: It seems the "Master" data is now the "People" data
+data("People", package = "Lahman")
+MasterFielding <- data.frame(merge(People, Fielding, by= "playerID"))
+throwPOS <- with(MasterFielding, table(POS, throws))
+```
+
+## Part (a)
+
+### *Make a mosaic display of throwing hand vs. fielding position.*
+```{r 5.4a}
+head(throwPOS)
+
+throwPOS <- throwPOS[,2:3]  # Remove columns B/S
+names(dimnames(throwPOS)) <- c("Position", "Throwing Hand")
+
+mosaic(throwPOS, shade = TRUE, 
+       main = "Throwing hand Versus Fielding Position\nFrom the People Dataset")
+```
+
+## Part (b)
+
+### *Calculate the percentage of players throwing left-handed by position. Make a sensible graph of this data.*
+
+```{r 5.4b}
+(pc_left <- 100 * throwPOS[,1] / (throwPOS[,1] + throwPOS[,2]))
+
+pc_left_df <- data.frame(
+  Position = names(pc_left),
+  throw_left = throwPOS[,1],
+  throw_right = throwPOS[,2],
+  Percentage_Left = unname(pc_left),
+  row.names = NULL
+)
+
+pc_left_df <- pc_left_df |> arrange(Percentage_Left)
+pc_left_df$Position <- factor(pc_left_df$Position, levels = pc_left_df$Position)
+
+ggplot(pc_left_df, aes(x = Position, y = Percentage_Left)) +
+  geom_point() +
+  geom_text(
+    label = paste0(round(pc_left_df$Percentage_Left, 2), "%"),
+    nudge_y = 1.5
+  ) +
+  coord_cartesian(ylim = c(0, 30)) +
+  scale_y_continuous(breaks = seq(0, 30, 5)) +
+  labs(
+    title = "Percentage of Players Throwing Left-Handed by Position",
+    y = "Percentage"
+  ) +
+  gavinTheme()
+  
+```
+
+## Part (c)
+
+### *Re-do the mosaic display with the positions sorted by percentage of left-handers.*
+
+```{r 5.4c}
+throwPOS_sort <- cbind(   # Create table based on sorted dataframe
+  xtabs(throw_left~Position, pc_left_df), 
+  xtabs(throw_right~Position, pc_left_df)
+)   
+
+colnames(throwPOS_sort) <- c("L", "R")
+names(dimnames(throwPOS_sort)) <- c("Position", "Throwing Hand")
+
+mosaic(throwPOS_sort, shade=TRUE, 
+       main = "Throwing hand Versus Fielding Position\nFrom the People Dataset")
+```
+
+## Part (d)
+
+### *Is there anything you can say about positions that have very few left-handed players?*
+
+Other than 1B, all positions with few left-handed players are in the infield as a consequence of most plays requiring a throw to the infielder's left-hand side (to 1B). The first-baseman does not have this issue as throws would most often be towards their right-hand side (i.e., to 2B and 3B but not home).
+
+
+# DDAR Exercise 5.8
+
+### *The* `HairEyePlace` *data in* \textsf{vcdExtra} *gives similar data on hair color and eye color, for both Caithness and Aberdeen as a* $4 \times 5 \times 2$ *table.*
+
+## Part (a)
+
+### *Prepare separate mosaic displays, one for each of Caithness and Aberdeen. Comment on any difference in the pattern of residuals.*
+
+```{r 5.8a, fig.height=7, fig.width=7}
+data("HairEyePlace", package = "vcdExtra")
+
+mosaic(HairEyePlace[,,"Caithness"], shade = TRUE, gp = shading_Friendly,
+       main = "Hair Colour Versus Eye Colour\nin Caithness From the\nHairEyePlace Dataset")
+
+mosaic(HairEyePlace[,,"Aberdeen"], shade = TRUE, gp = shading_Friendly,
+       main = "Hair Colour Versus Eye Colour\nin Aberdeen From the\nHairEyePlace Dataset")
+```
+
+The pattern of residuals is largely the same, with brightness of eyes/hair being associated with larger than expected frequencies of a similar brightness of eyes/hair (compared to a model of independence). Thus, in both displays there appears to be a pattern of agreement where diagonal elements have large positive residuals, and larger negative residuals tend to be further from the diagonal.
+
+On average, data from Aberdeen exhibit a larger magnitude of residuals than the data from Caithness. The pattern of agreement/disagreement is more evident in the Aberdeen data due to the cells corresponding to medium hair reflecting larger negative residuals (in magnitude).
+
+## Part (b)
+
+### *Construct conditional mosaic plots, using the formula* `~ Hair + Eye | Place` *and both* `mosaic()` *and* `cotabplot()`*. It is probably more useful here to suppress the legend in these plots. Comment on the difference in what is shown in the two displays.*
+
+```{r 5.8b, fig.height=10, fig.width=10}
+mosaic(
+  ~Hair + Eye | Place, data = HairEyePlace, 
+  shade = TRUE, gp = shading_Friendly, legend = FALSE, 
+  rot_labels = c(right = -45),
+  main = "Model: ~ Hair + Eye | Place"
+)
+cotabplot(
+  ~Hair + Eye | Place, data = HairEyePlace, 
+  shade = TRUE, gp = shading_Friendly, legend = FALSE
+)
+```
+
+The mosaic display allows for a comparison of relative sample size between Caithness and Aberdeen, whereas the cotabplot allows for easier inspection of residuals within the place (Caithness) that has a lower relative sample size.
+
+# Appendix
+
+## gavinTheme()
+
+```{r gavinTheme}
+gavinTheme <- function(){
+   #' gavinTheme
+   #'
+   #' Theme for ggplot2 graphs.
+   #'
+   #' Used by adding to existing ggplot2 object.
+   #' @examples
+      #' ggplot(...) + gavinTheme()
+
+   theme_minimal() +
+   theme(
+      plot.title = element_text(hjust = .5, margin = margin(r = 20,b = 10)),
+      axis.ticks = element_line(colour = "black", size =.5),
+      axis.line = element_line(colour = "black", size = .5),
+      axis.text = element_text(size = 10),
+      axis.title.x = element_text(margin = margin(t = 10)),
+      axis.title.y = element_text(margin = margin(r = 10)),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      plot.margin = margin(t = 10, r = 20, b = 10, l = 10)
+   )
+}
+```
