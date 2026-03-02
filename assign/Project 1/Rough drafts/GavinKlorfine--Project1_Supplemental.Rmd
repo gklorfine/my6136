@@ -1,0 +1,411 @@
+---
+title: "GavinKlorfine--Project1_Supplemental"
+author: "Gavin Klorfine"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,   # avoid warnings and messages in the output
+  message = FALSE,
+  fig.height = 6,    # set default figure size
+  fig.width = 6.5
+)
+
+as_table <- function(obj, freq = NULL, dims = NULL){
+  
+  # If user supplied a table or array, return it back to them
+  if (length(intersect(c("table", "array"), class(obj))) > 0){
+    
+    tab <- as.table(obj) # Handle arrays
+    
+    # To include dimensions if specified
+    if (!is.null(dims)){
+      tab <- margin.table(tab, margin = dims)
+    }
+    
+    return(tab)
+  }
+  
+  
+  # If obj is a tibble, convert to data frame
+  else if (length(intersect("tbl", class(obj))) > 0){
+    obj <- as.data.frame(obj)
+  }
+  
+  if (!is.null(dims)){ # If dims supplied by user, use those
+    cols <- dims
+  }
+  else { # If dims NOT supplied by user, use everything else
+    cols <- colnames(obj)
+  }
+  
+  if (!is.null(freq)){  # If freq supplied by user, then... (freq form)
+    cols <- cols[cols != freq] # Remove freq column
+    tab <- xtabs(reformulate(cols, response = freq), data = obj) # freq ~ cols
+  }
+  else { # If freq NOT supplied by user, and not array, then... (case form)
+    tab <- xtabs(reformulate(cols), data = obj)
+    
+    # Check if user forgot to supply freq, warn if they potentially forgot
+    common <- c("n", "freq", "frequency", "count")
+    if (length(intersect(tolower(colnames(obj)), common)) > 0){
+      warning("Ensure a value for 'freq' was supplied if your data was in frequency form.")
+    }
+  }
+  return(tab)
+}
+
+options(rgl.useNULL = TRUE)
+library(vcdExtra)
+library(MASS)
+library(ca)
+library(ggplot2)
+library(dplyr)
+library(car)
+library(effects)
+```
+
+# Question 1
+
+### **Minnesota High School Graduates:** The `Hoyt` data in \textsf{vcdExtra} gives a $4 \times 3 \times 7 \times 2$ table classifying nearly 14000 graduates by (a) post-high school `Status`, (b) `Rank` in their graduating class, (c) father's  `Occupational` status (7 levels, from 1=High to 7=Low) and (d) `Sex`.  `Status` is considered the outcome variable.  How does it depend on the other factors?
+
+## Part (a)
+
+### *Analyze and display the associations between status and each of the other variables individually. In doing this, you might also consider focusing attention on the distinction between College and Non-college Status.*
+
+```{r q1a_occupation_analyze}
+data("Hoyt", package = "vcdExtra")
+
+(status_occup <- (margin.table(Hoyt, c("Status", "Occupation")) |> CMHtest())) # row means
+
+# Analyze college vs non-college
+distinct_status <- collapse.table(
+  Hoyt, Status = c("College", "Non-college", "Non-college", "Non-college")
+)
+
+(
+  dist_status_occup <- (
+    margin.table(distinct_status, c("Status", "Occupation")) |> CMHtest() # row means
+  )
+)
+```
+
+```{r q1a_occupation_display, fig.show="hold", out.width="50%"}
+mosaic(
+  ~ Occupation + Status, data = Hoyt,
+  shading = TRUE, gp = shading_Friendly,
+  rot_labels = c(top = 45),
+  main = "Graduate's Post High School Status\nand Father's Occupational Status"
+)
+mosaic(
+  ~ Occupation + Status, data = distinct_status,
+  shading = TRUE, gp = shading_Friendly,
+  main = "With Post High School Status Collapsed\nto College/Non-College"
+)
+```
+
+```{r q1a_rank_analyze}
+(status_rank <- margin.table(Hoyt, c("Status", "Rank")) |> CMHtest()) # row means
+
+(
+  dist_status_rank <- (
+    margin.table(distinct_status, c("Status", "Rank")) |> CMHtest() # row means
+  )
+)
+```
+
+```{r q1a_rank_display, fig.show="hold", out.width="50%"}
+mosaic(
+  ~ Rank + Status, data = Hoyt,
+  shading = TRUE, gp = shading_Friendly,
+  rot_labels = c(top = 45),
+  main = "Graduate's Post High School Status\nand Rank in Their Graduating Class"
+)
+mosaic(
+  ~ Rank + Status, data = distinct_status,
+  shading = TRUE, gp = shading_Friendly,
+  main = "With Post High School Status Collapsed\nto College/Non-College"
+)
+```
+
+```{r q1a_sex_analyze}
+(status_sex <- margin.table(Hoyt, c("Status", "Sex")) |> assocstats())
+
+(
+  dist_status_sex <- (
+    margin.table(distinct_status, c("Status", "Sex")) |> assocstats()
+  )
+)
+```
+
+```{r q1a_sex_display, fig.show="hold", out.width="50%"}
+mosaic(
+  ~ Sex + Status, data = Hoyt,
+  shading = TRUE, gp = shading_Friendly,
+  rot_labels = c(top = 45),
+  main = "Graduate's Post High School Status\nand Their Sex"
+)
+mosaic(
+  ~ Sex + Status, data = distinct_status,
+  shading = TRUE, gp = shading_Friendly,
+  main = "With Post High School Status Collapsed\nto College/Non-College"
+)
+```
+
+## Part (b)
+
+### *Consider and analyze the associations among the predictor variables: *`Rank`*, *`Occupation` *and* `Sex`*. Is there anything of interest worth mentioning or analyzing in further detail? Is it useful to consider collapsing some of the categories?*
+
+```{r q1b_beforecollapse, fig.width=6.5}
+# Display associations
+pred_tab <- margin.table(Hoyt, c("Rank", "Occupation", "Sex"))
+
+pairs(pred_tab, gp = shading_Friendly)
+```
+
+```{r q1b_aftercollapse}
+# Collapsing occupation to the following based on similarity in the mosaic plots:
+# 1, 2 -> "High",   |         4 -> "Low"
+#    3 -> "Middle"  |   5, 6, 7 -> "Very Low"
+
+coll.pred_tab <- collapse.table(
+  pred_tab,
+  Occupation = c("High", "High", "Middle", "Low", "Very Low", "Very Low", "Very Low")
+)
+
+# Associations among predictors
+CMHtest(margin.table(coll.pred_tab, c("Rank", "Occupation"))) # Test nonzero correlation
+CMHtest(margin.table(coll.pred_tab, c("Rank", "Sex"))) # Test difference in column means
+CMHtest(margin.table(coll.pred_tab, c("Sex", "Occupation"))) # Test difference in row means
+
+pairs(coll.pred_tab, gp = shading_Friendly)
+```
+
+
+## Part (c)
+
+### *Start by fitting a simple model of joint independence of* `Status` *from the predictors, then add additional associations as you consider necessary until you obtain a reasonably well-fitting model.*
+
+```{r q1c, fig.height = 10}
+coll_Hoyt <- collapse.table(
+  Hoyt, 
+  Occupation = c("High", "High", "Middle", "Low", "Very Low", "Very Low", "Very Low")
+)
+
+(joint <- loglm(~Rank*Occupation*Sex + Status, data = coll_Hoyt))
+
+(rankstat <- loglm(~Rank*Occupation*Sex + Rank*Status, data = coll_Hoyt))
+
+(occupstat <- loglm(~Rank*Occupation*Sex + Status*(Rank + Occupation), data = coll_Hoyt))
+
+(sexstat <- loglm(~Rank*Occupation*Sex + Status*(Rank + Occupation + Sex), data = coll_Hoyt))
+
+(statsexocc <- loglm(~Rank*Occupation*Sex + Status*(Rank + Occupation + Sex) + Status*Sex*Occupation, data = coll_Hoyt))
+
+(statsexrank <- loglm(~Rank*Occupation*Sex + Status*(Rank + Occupation + Sex) + Status*(Sex*Occupation + Occupation*Rank), data = coll_Hoyt))
+
+
+anova(joint, rankstat, occupstat, sexstat, statsexocc, statsexrank)
+
+
+mosaic(statsexrank, rot_labels = c(right = -45))
+```
+
+## Part (g)
+
+### *Conduct a multiple correspondence analysis for the* `Hoyt` *data. Provide a reasonable interpretation of the two dimensions that explain the largest proportion of variance.*
+
+```{r q1g, fig.width=7, fig.height=7}
+mjca.coll_Hoyt <- mjca(coll_Hoyt, lambda = "Burt")
+summary(mjca.coll_Hoyt)
+
+### BELOW ADAPTED FROM Friendly & Meyer (2016; p. 245), Discrete Data Analysis with R ###
+res <- plot(mjca.coll_Hoyt, labels= 0, pch= ".", cex.lab= 1.2)
+
+# extract factor names and levels
+coords <- data.frame(res$cols, mjca.coll_Hoyt$factors)
+nlev <- mjca.coll_Hoyt$levels.n
+fact <- unique(as.character(coords$factor))
+
+cols <- c("blue", "red", "darkgreen", "black")
+points(coords[,1:2], pch=rep(16:19, nlev), col=rep(cols, nlev), cex=1.2)
+text(coords[,1:2], label=coords$level, col=rep(cols, nlev), pos=3, cex=1.2, xpd=TRUE)
+
+legend(
+  "bottomright", legend= c("Status", "Rank", "Occupation", "Sex"), title= "Factor", 
+  title.col= "black", col = cols, text.col = cols, pch= 16:19, bg= "gray95", cex = 1.2
+)
+```
+
+# Question 2
+
+### **Student Opinion about the Vietnam War:** *The data set *`Vietnam` *in* \textsf{vcdExtra} *gives a* $2 \times 5 \times 4$ *contingency table in frequency form reflecting a survey of student opinion on the Vietnam War at the University of North Carolina in May 1967. The table variables are *`sex`*, *`year` *in school and *`response`*, which has categories: (A) Defeat North Vietnam by widespread bombing and land invasion; (B) Maintain the present policy; (C) De-escalate military activity, stop bombing and begin negotiations; (D) Withdraw military forces Immediately. How does the chosen response vary with *`sex` *and* `year`*?*
+
+## Part (a)
+
+### *Construct some useful plots showing the proportions of each response category by* `sex` *and* `year` *of study. It may be helpful to add some smoothed or fitted curves to aid interpretation.*
+
+```{r q2a}
+data("Vietnam", package = "vcdExtra")
+
+viet <- rename(Vietnam, "Sex" = sex, "Year" = year, "Response" = response)
+
+# Male proportions sum to 1 and female proportions sum to 1 within each response category
+respProps_viet <- (
+  viet |> 
+  group_by(Response, Sex) |> 
+  mutate(Proportion = Freq / sum(Freq))
+)
+
+ggplot(respProps_viet, aes(x = Year, y = Proportion, fill = Sex, colour = Sex)) + 
+  facet_wrap(vars(Response)) + 
+  geom_point() + 
+  geom_line() +
+  scale_y_continuous(breaks = seq(0, 0.6, 0.1)) +
+  coord_cartesian(ylim = c(0, 0.6)) +
+  labs(
+    title = "Proportions of Each Response Category by Sex and Year",
+    subtitle = "Response"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.background = element_blank(),
+    panel.border = element_rect()
+  )
+
+viet_tab <- as_table(viet, freq = "Freq") # See Appendix for as_table()
+cotabplot(
+  ~ Sex + Year | Response, data = viet_tab, 
+  shade = TRUE, gp = shading_Friendly,
+)
+```
+
+## Part (b)
+
+### *Analyze the associations between* `response` *and each of* `sex` *and* `year` *separately, using graphs and statistical tests. Note that both* `year` *and* `response` *can be considered ordinal factors. *
+
+```{r q2b}
+# Create tables
+tab.viet_sex <- margin.table(viet_tab, margin = c("Sex", "Response"))
+tab.viet_year <- margin.table(viet_tab, margin = c("Year", "Response"))
+
+# Statistical tests for association
+CMHtest(tab.viet_sex) # Test row means
+CMHtest(tab.viet_year) # Test nonzero correlation
+
+# Graphically analyze associations
+mosaic(tab.viet_sex, shade = TRUE, gp = shading_Friendly)
+mosaic(tab.viet_year, shade = TRUE, gp = shading_Friendly)
+```
+
+## Part (c)
+
+### *Fit loglinear and/or polytomous logit models designed explain the relationship between response and year of study*
+
+```{r q2c}
+viet$Response <- ordered(viet$Response) # Order by "level of pacifism": A < B < C < D
+
+polr.viet_intrcpt <- polr(Response ~ 1, data = viet, Hess = TRUE)
+polr.viet <- polr(Response ~ Year, data = viet, Hess = TRUE)
+
+summary(polr.viet)
+
+anova(polr.viet_intrcpt, polr.viet) # Year not significant predictor over and above intercept only model
+
+plot(Effect("Year", polr.viet), main = "Effect Plot for the Effect of\nYear of Study on Response")
+
+
+
+loglm.viet_simple <- loglm(~(Year*Sex) + Response, data = viet_tab) # Predictors independent of response
+
+loglm.viet_respYear <- loglm(~(Year*Sex) + Response*Year, data = viet_tab) # 2-way of response*year
+
+loglm.viet <- loglm(~(Year*Sex) + Response*(Year + Sex), data = viet_tab) # All 2-ways--good fit
+
+loglmComp.viet <- anova(loglm.viet_simple, loglm.viet_respYear, loglm.viet) # Model comparison
+
+
+mosaic(loglm.viet, gp = shading_Friendly)
+```
+
+## Part (g)
+
+### *Conduct a multiple correspondence analysis for the* `Vietnam` *data. Provide a reasonable interpretation of the two dimensions that explain the largest proportion of variance.*
+
+```{r q2g}
+mjca.viet_tab <- mjca(viet_tab, lambda = "Burt")
+summary(mjca.viet_tab)
+
+### BELOW ADAPTED FROM Friendly & Meyer (2016; p. 245), Discrete Data Analysis with R ###
+res <- plot(mjca.viet_tab, labels= 0, pch= ".", cex.lab= 1.2)
+
+# extract factor names and levels
+coords <- data.frame(res$cols, mjca.viet_tab$factors)
+nlev <- mjca.viet_tab$levels.n
+fact <- unique(as.character(coords$factor))
+
+cols <- c("blue", "red", "black")
+points(coords[,1:2], pch=rep(16:18, nlev), col=rep(cols, nlev), cex=1.2)
+text(coords[,1:2], label=coords$level, col=rep(cols, nlev), pos=3, cex=1.2, xpd=TRUE)
+
+legend(
+  "bottomright", legend= c("Sex", "Year", "Response"), title= "Factor", 
+  title.col= "black", col = cols, text.col = cols, pch= 16:18, bg= "gray95", cex = 1.2
+)
+```
+
+# Appendix
+
+## `as_table()`
+
+Converts object (`obj`) in frequency or case form into table form. The column containing the frequencies (`freq`) must be supplied if `obj` is in frequency form.
+
+```{r as_table}
+as_table <- function(obj, freq = NULL, dims = NULL){
+  
+  # If user supplied a table or array, return it back to them
+  if (length(intersect(c("table", "array"), class(obj))) > 0){
+    
+    tab <- as.table(obj) # Handle arrays
+    
+    # To include dimensions if specified
+    if (!is.null(dims)){
+      tab <- margin.table(tab, margin = dims)
+    }
+    
+    return(tab)
+  }
+  
+  
+  # If obj is a tibble, convert to data frame
+  else if (length(intersect("tbl", class(obj))) > 0){
+    obj <- as.data.frame(obj)
+  }
+  
+  if (!is.null(dims)){ # If dims supplied by user, use those
+    cols <- dims
+  }
+  else { # If dims NOT supplied by user, use everything else
+    cols <- colnames(obj)
+  }
+  
+  if (!is.null(freq)){  # If freq supplied by user, then... (freq form)
+    cols <- cols[cols != freq] # Remove freq column
+    tab <- xtabs(reformulate(cols, response = freq), data = obj) # freq ~ cols
+  }
+  else { # If freq NOT supplied by user, and not array, then... (case form)
+    tab <- xtabs(reformulate(cols), data = obj)
+    
+    # Check if user forgot to supply freq, warn if they potentially forgot
+    common <- c("n", "freq", "frequency", "count")
+    if (length(intersect(tolower(colnames(obj)), common)) > 0){
+      warning("Ensure a value for 'freq' was supplied if your data was in frequency form.")
+    }
+  }
+  return(tab)
+}
+```
+

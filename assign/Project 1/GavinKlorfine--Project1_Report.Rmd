@@ -1,0 +1,986 @@
+---
+title: ""
+author: ""
+date: ""
+output: pdf_document
+bibliography: GK_proj1_refs.bib
+csl: apa.csl
+fontsize: 12pt
+linestretch: 2
+header-includes:
+  - \usepackage{gensymb}
+  - \usepackage{fancyhdr}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[R]{\thepage}
+  - \fancyhead[L]{GAVIN KLORFINE 6136 PROJECT \#1}
+  - \renewcommand{\headrulewidth}{0pt}
+---
+
+```{r setup, include=FALSE}
+### Chunk options ###
+knitr::opts_chunk$set(
+  warning = FALSE,   # avoid warnings and messages in the output
+  message = FALSE,
+  fig.height = 6,    # set default figure size
+  fig.width = 6.5,
+  include = FALSE,
+  echo = FALSE
+)
+###
+
+### Packages ###
+options(rgl.useNULL = TRUE)
+library(vcdExtra)
+library(MASS)
+library(ca)
+library(ggplot2)
+library(dplyr)
+library(car)
+###
+
+### Functions ###
+no_lead_zero <- function(p){
+  #' Takes a statistic and returns it as a string without the leading zero. 
+  #' Useful for p-values. 
+  #' Code retrieved from: https://stackoverflow.com/questions/49186893/remove-leading-0s-with-stringr-in-r
+
+  return(sub("^0+", "", p))
+}
+
+as_table <- function(obj, freq = NULL, dims = NULL){
+  #'Converts object (`obj`) in frequency or case form into table form. The 
+  #'column containing the frequencies (`freq`) must be supplied if `obj` is in 
+  #'frequency form.
+  
+  # If user supplied a table or array, return it back to them
+  if (length(intersect(c("table", "array"), class(obj))) > 0){
+    
+    tab <- as.table(obj) # Handle arrays
+    
+    # To include dimensions if specified
+    if (!is.null(dims)){
+      tab <- margin.table(tab, margin = dims)
+    }
+    
+    return(tab)
+  }
+  
+  
+  # If obj is a tibble, convert to data frame
+  else if (length(intersect("tbl", class(obj))) > 0){
+    obj <- as.data.frame(obj)
+  }
+  
+  if (!is.null(dims)){ # If dims supplied by user, use those
+    cols <- dims
+  }
+  else { # If dims NOT supplied by user, use everything else
+    cols <- colnames(obj)
+  }
+  
+  if (!is.null(freq)){  # If freq supplied by user, then... (freq form)
+    cols <- cols[cols != freq] # Remove freq column
+    tab <- xtabs(reformulate(cols, response = freq), data = obj) # freq ~ cols
+  }
+  else { # If freq NOT supplied by user, and not array, then... (case form)
+    tab <- xtabs(reformulate(cols), data = obj)
+    
+    # Check if user forgot to supply freq, warn if they potentially forgot
+    common <- c("n", "freq", "frequency", "count")
+    if (length(intersect(tolower(colnames(obj)), common)) > 0){
+      warning("Ensure a value for 'freq' was supplied if your data was in frequency form.")
+    }
+  }
+  return(tab)
+}
+###
+
+
+
+#####################################################################################
+#           CLAUDE GENERATED FUNCTION/FIX TO vcd::pairs_diagonal_mosaic()           #
+#           https://claude.ai/share/919799b9-554b-4d77-8fd4-b30cd338e7d6            #
+
+# Fixed version of pairs_diagonal_mosaic that actually honours the labeling argument
+my_diagonal_mosaic <- function(split_vertical = TRUE,
+                               margins = unit(0, "lines"),
+                               offset_labels = -0.4,
+                               offset_varnames = 0,
+                               gp = NULL,
+                               fill = "grey",
+                               labeling = labeling_values,
+                               alternate_labels = TRUE,
+                               ...) {
+  function(x, i) {
+    if (is.function(fill))
+      fill <- rev(fill(dim(x)[i]))
+    if (is.null(gp))
+      gp <- gpar(fill = fill)
+    mosaic(margin.table(x, i),
+           newpage = FALSE,
+           split_vertical = split_vertical,
+           margins = margins,
+           offset_labels = offset_labels,
+           offset_varnames = offset_varnames,
+           prefix = "diag",
+           gp = gp,
+           labeling = labeling,     # now uses the argument, not hardcoded
+           labeling_args = list(alternate_labels = alternate_labels),
+           ...)
+  }
+}
+class(my_diagonal_mosaic) <- "grapcon_generator"
+
+#####################################################################################
+```
+
+
+
+\newpage
+\begin{center}
+
+\vspace*{2in}
+
+\textbf{Project \#1}
+
+\vspace{0.25in}
+
+Gavin M. Klorfine \\
+Department of Psychology, York University \\
+PSYC 6136: Categorical Data Analysis \\
+Professor Michael L. Friendly \\
+February 26th, 2026
+
+\end{center} 
+\newpage
+
+
+
+\centerline{\textbf{Question 1: The Minnesota High School Graduates Data (}\tt{Hoyt}\textbf{)}}
+
+
+
+\textbf{Problem Description}
+
+
+
+\qquad The `Hoyt` dataset from the vcdExtra package in R contains a $4 \times 3 \times 7 \times 2$ contingency table that classifies $N = 13968$ graduates by the following variables [@hoyt; @vcdExtra; @R]: 
+
+1. One's post-high school `Status`, with levels `"College"`, `"School"`, `"Job"`, and `"Other"`.
+1. One's `Rank` in their graduating class, with levels `"Low"`, `"Middle"`, and `"High"` corresponding to the bottom, middle, and top thirds of the class.
+1. The status of one's father's `Occupation`, with seven levels ($1, 2, ..., 7$); a lower integer represents higher status (and a higher integer represents lower status).
+1. One's `Sex`, with levels `"Male"`, and `"Female"`.
+
+\qquad One's post-high school status seems like it may be plausibly associated with the other variables. Moreover, `Status` was taken to be the outcome variable, with `Rank`, `Occupation`, and `Sex` as potential predictors. Thus, the following analyses aim to explore, analyze, and model how `Status` is associated with predictor variables `Rank`, `Occupation`, and `Sex`.
+
+
+
+\textbf{Method}
+
+
+
+\qquad First, associations between status and other variables were analyzed through statistical tests and graphical methods, taking ordinality into account where possible. For the association between `Status` (nominal) and `Occupation` (ordinal), this meant conducting a Cochran-Mantel-Haenszel (CMH) test for a difference in row mean scores. This was done in R (v. 4.5.1) using the vcdExtra package [v. 0.9.1\; @vcdExtra; @R]. The same test was conducted for the association between `Status` (nominal) and `Rank` (ordinal). For the association between `Status` (nominal) and `Sex` (nominal), a likelihood ratio $\chi^2$ test for association was conducted. Each of these comparisons had their Pearson residuals depicted using mosaic plots, allowing for the nature and size of the association to be illustrated and interpreted.
+
+\qquad The above was conducted twice: once using the initial categories of `Status` and again with categories collapsed into `"College"` (initial category `"College"`) or `"Non-college"` (initial categories `"School"`, `"Job"`, and `"Other"`).
+
+\qquad Second, associations among the predictor variables, `Rank`, `Occupation`, and `Sex`, were analyzed using a mosaic matrix of pairwise associations. From this, it was found that categories of `Occupation` could be reasonably collapsed into categories (see Results for reasoning):
+
+1. `"High"` (initial categories $1, 2$),
+1. `"Middle"` (initial category $3$), 
+1. `"Low"` (initial category $4$),
+1. `"Very Low"` (initial categories $5, 6, 7$).
+
+\qquad After collapsing `Occupation`, the mosaic matrix was reconstructed. Further, associations among predictors were then analyzed through statistical tests, taking ordinality into account where possible. For the association between `Rank` (ordinal) and `Occupation` (ordinal), this meant conducting a CMH test for a non-zero correlation between variables. For the association between `Rank` (ordinal) and `Sex` (nominal), this meant conducting a CMH test for a difference in column mean scores. For the association between `Sex` (nominal) and `Occupation` (ordinal), this meant conducting a CMH test for a difference in row mean scores. 
+
+\qquad Third, a multiple correspondence analysis (MCA) was conducted to explore the nature of the associations between the levels of all variables. This was done using the ca package (v. 0.71.1) in R [@ca; @R]. The two dimensions that explained the greatest proportion of variance in the data were identified and given possible interpretations.
+
+\qquad Last, a loglinear model was then fit to explain associations among all variables. This was done in R using the MASS package [v. 7.3-65\; @mass; @R]. The resulting model was depicted via a mosaic display to provide evidence toward model fit.
+
+
+
+\textbf{Results}
+
+
+
+\textit{\textbf{Associations Between Status and Other Variables}}
+
+
+
+\qquad \textbf{Association Between Status and Occupation.}
+
+
+
+```{r assoc.status_occupation}
+data("Hoyt", package = "vcdExtra")
+
+status_occup <- margin.table(Hoyt, c("Status", "Occupation")) |> CMHtest() # row means
+
+# Analyze college vs non-college
+distinct_status <- collapse.table(
+  Hoyt, Status = c("College", "Non-college", "Non-college", "Non-college")
+)
+
+dist_status_occup <- margin.table(distinct_status, c("Status", "Occupation")) |> CMHtest() # row means
+
+
+## For inline reporting ##
+chisqStat.status_occup <- status_occup$table["rmeans","Chisq"] |> round(2)
+chisqDF.status_occup <- status_occup$table["rmeans","Df"]
+chisqStat.dist_status_occup <- dist_status_occup$table["rmeans","Chisq"] |> round(2)
+chisqDF.dist_status_occup <- dist_status_occup$table["rmeans","Df"]
+```
+
+
+
+\qquad To examine the marginal association between `Status` (nominal) and `Occupation` (ordinal; both not yet collapsed), collapsing over `Sex` and `Rank`, a CMH test was conducted. The result of the CMH test indicated that row mean scores differed, $\chi^2 (`r chisqDF.status_occup`) = `r chisqStat.status_occup`, \: p < .001$. When `Status` was collapsed into `"College"` and `"Non-college"`, a similar result was obtained (CMH $\chi^2 (`r chisqDF.dist_status_occup`) = `r chisqStat.dist_status_occup`, \: p < .001$). The size and nature of these associations are depicted in Figure 1.
+
+\qquad Due to the large magnitude of residuals, reflected by darker shading in Figure 1, there
+
+
+
+\textbf{Figure 1}
+
+\textit{Mosaic Plots of Graduate's Post High School Status (Both Collapsed and Uncollapsed) and Their Father's Occupational Status}
+
+```{r figure1, fig.show="hold", out.width="50%", include=TRUE}
+mosaic(
+  ~ Occupation + Status, data = Hoyt,
+  shading = TRUE, gp = shading_Friendly,
+  rot_labels = c(top = 45),
+  main = "Graduate's Post High School Status\nand Father's Occupational Status"
+)
+mosaic(
+  ~ Occupation + Status, data = distinct_status,
+  shading = TRUE, gp = shading_Friendly,
+  main = "With Post High School Status Collapsed\nto College/Non-College"
+)
+```
+
+\textit{Note.} `Status` is uncollapsed in the mosaic on the left, whereas `Status` is collapsed to `"College"` and `"Non-college"` in the mosaic on the right.
+
+
+
+was evidence indicating a strong marginal association between one's post high school `Status` and the status of their father's `Occupation`, collapsing over `Sex` and `Rank`. With `Status` *uncollapsed*, a pattern of `"College"` and `"Non-college"` is apparent within levels of `Occupation`. Further, levels of occupation exhibit a spectrum, with positive residuals on one side and negative residuals on the other. For example, when one's father's occupation is of high status (`Occupation` $= 1$), graduates have a greater frequency of going to college after high school, with progressively lower frequencies of going to school, working a job, or `"Other"`. This pattern is made more apparent via the collapsing of `Status`. After collapsing `Status`, it is apparent that graduates with fathers that have higher occupational status (`Occupation` $= 1, 2$) attend college at a greater rate than would be expected under a model of independence (where `Status` and `Occupation` are not associated given `Sex` and `Rank`). With the exception of `Occupation` $= 4$, the other categories of paternal occupation status exhibit the opposite pattern; namely, graduates with paternal occupation status $3, 5, 6,$ and $7$ attended college at a lower rate than would be expected under a model of independence.
+
+
+
+\qquad \textbf{Association Between Status and Rank.}
+
+
+
+```{r assoc.status_rank}
+status_rank <- margin.table(Hoyt, c("Status", "Rank")) |> CMHtest() # row means
+
+dist_status_rank <- margin.table(distinct_status, c("Status", "Rank")) |> CMHtest() # row means
+
+
+## For inline reporting ##
+chisqStat.status_rank <- status_rank$table["rmeans","Chisq"] |> round(2)
+chisqDF.status_rank <- status_rank$table["rmeans","Df"]
+chisqStat.dist_status_rank <- dist_status_rank$table["rmeans","Chisq"] |> round(2)
+chisqDF.dist_status_rank <- dist_status_rank$table["rmeans","Df"]
+```
+
+
+
+\qquad To examine the marginal association between `Status` (nominal; uncollapsed) and `Rank` (ordinal), collapsing over `Sex` and `Occupation`, a CMH test was conducted. The result of the CMH test indicated that row mean scores differed, $\chi^2 (`r chisqDF.status_rank`) = `r chisqStat.status_rank`, \: p < .001$. When `Status` was collapsed into `"College"` and `"Non-college"`, a similar result was obtained (CMH $\chi^2 (`r chisqDF.dist_status_rank`) = `r chisqStat.dist_status_rank`, \: p < .001$). The size and nature of these associations are depicted in Figure 2.
+
+\qquad Due to the large magnitude of residuals, reflected by darker shading in Figure 2, there was evidence indicating a strong marginal association between one's post high school `Status` and their `Rank` in their graduating class, given `Occupation` and `Sex`. Those ranked in the top third of the class (`Rank` $=$ `"High"`) attended college and worked a job at a much greater rate, attended school at a moderately greater rate, and had a `Status` of `"Other"` at a much lower rate than would be expected under a model of independence (where `Status` and `Rank` are not associated given `Occupation` and `Sex`). This pattern was reversed for those in the lowest third of the class (`Rank` $=$ `"Low"`); namely, these graduates attended college and worked a job at a much lower rate, attended school at a moderately lower rate, and had a `Status` of `"Other"` at a much greater rate than would be expected under a model of independence.
+
+
+
+\textbf{Figure 2}
+
+\textit{Mosaic Plots of Graduate's Post High School Status (Both Collapsed and Uncollapsed) and Their Rank in Their Graduating Class}
+
+```{r figure2, fig.show="hold", out.width="50%", include=TRUE}
+mosaic(
+  ~ Rank + Status, data = Hoyt,
+  shading = TRUE, gp = shading_Friendly,
+  rot_labels = c(top = 45),
+  main = "Graduate's Post High School Status\nand Rank in Their Graduating Class"
+)
+mosaic(
+  ~ Rank + Status, data = distinct_status,
+  shading = TRUE, gp = shading_Friendly,
+  main = "With Post High School Status Collapsed\nto College/Non-College"
+)
+```
+
+\textit{Note.} `Status` is uncollapsed in the mosaic on the left, whereas `Status` is collapsed to `"College"` and `"Non-college"` in the mosaic on the right.
+
+
+
+For those in the middle third of the class (`Rank` $=$ `"Middle"`), graduates attended college at a much lower rate and had a `Status` of `"Other"` at a moderately greater rate than would be expected under a model of independence (with rates of `Status` categories `"Job"` and `"School"` being slightly to negligibly different from a model of independence).
+
+\qquad A similar pattern is seen when `Status` is collapsed to `"College"` and `"Non-college"`; albeit with nuance lost. This is because `Status` categories of `"School"` and `"Job"` show residuals of opposing magnitude to the `"Other"` category, meaning collapsing these three categories into `"Non-college"` results in a loss of information.
+
+\qquad Overall, this evidence indicates that ones rank in their high school class is strongly associated with their post high school status, with those of high ranking attending college at a greater rate than would be expected under a model of independence (and the opposite for those of low ranking).
+
+
+
+\qquad \textbf{Association Between Status and Sex.}
+
+
+
+```{r assoc.status_sex}
+status_sex <- margin.table(Hoyt, c("Status", "Sex")) |> assocstats()
+
+dist_status_sex <- margin.table(distinct_status, c("Status", "Sex")) |> assocstats()
+
+## For inline reporting ##
+chisqStat.status_sex <- status_sex$chisq_tests["Likelihood Ratio","X^2"] |> round(2)
+chisqDF.status_sex <- status_sex$chisq_tests["Likelihood Ratio","df"]
+chisqStat.dist_status_sex <- dist_status_sex$chisq_tests["Likelihood Ratio","X^2"] |> round(2)
+chisqDF.dist_status_sex <- dist_status_sex$chisq_tests["Likelihood Ratio","df"]
+deltaG2 <- chisqStat.status_sex - chisqStat.dist_status_sex
+deltaG2_df <- chisqDF.status_sex - chisqDF.dist_status_sex
+```
+
+
+
+\qquad To examine the marginal association between `Status` (nominal; uncollapsed) and `Sex` (nominal), collapsing over `Rank` and `Occupation`, a likelihood ratio test was conducted. Results indicated that there was a significant association between `Status` and `Sex`, $G^2(`r chisqDF.status_sex`) = `r chisqStat.status_sex`, \: p < . 001$. When `Status` was collapsed into `"College"` and `"Non-college"`, a significant, albeit weaker, result was obtained ($G^2(`r chisqDF.dist_status_sex`) = `r chisqStat.dist_status_sex`, \: p < . 001$, $\Delta G^2(`r deltaG2_df`) = `r deltaG2`$). The size and nature of these associations are depicted in Figure 3.
+
+\qquad As shown through the shading of Figure 3, males and females seem to exhibit opposite patterns of association in regard to `Status`. That is, males go to college or have a post high school `Status` of `"Other"` at a moderately *greater* rate, and go to school or work a job at a much *lower* rate than expected under a model of independence (where `Status` and `Sex` are not associated given `Occupation` and `Rank`). In contrast, females go to college or have a post high school `Status` of `"Other"` at a moderately *lower* rate, and go to school or work a job at a much *greater* rate than expected under a model of independence.
+
+\qquad When `Status` was collapsed to `"College"` and `"Non-college"`, the strength of the association decreased as a result of collapsing over the observed pattern regarding the `"School"` and `"Job"` `Status` categories. This suggests that collapsing `Status` in this manner will result in a loss of information.
+
+\qquad Overall, evidence indicates that a graduate's `Sex` is strongly associated with their post-
+
+
+
+\textbf{Figure 3}
+
+\textit{Mosaic Plots of Graduate's Post High School Status (Both Collapsed and Uncollapsed) and Their Sex}
+
+```{r figure3, fig.show="hold", out.width="50%", include=TRUE}
+mosaic(
+  ~ Sex + Status, data = Hoyt,
+  shading = TRUE, gp = shading_Friendly,
+  rot_labels = c(top = 45),
+  main = "Graduate's Post High School Status\nand Their Sex"
+)
+mosaic(
+  ~ Sex + Status, data = distinct_status,
+  shading = TRUE, gp = shading_Friendly,
+  main = "With Post High School Status Collapsed\nto College/Non-College"
+)
+```
+
+\textit{Note.} `Status` is uncollapsed in the mosaic on the left, whereas `Status` is collapsed to `"College"` and `"Non-college"` in the mosaic on the right.
+
+
+
+high school `Status`, with males and females displaying opposing patterns of association.
+
+
+
+\textit{\textbf{Associations Among Predictor Variables}}
+
+```{r assoc_predictors}
+pred_tab <- margin.table(Hoyt, c("Rank", "Occupation", "Sex"))
+
+# Collapsing occupation to the following based on similarity in the mosaic plots:
+# 1, 2 -> "High",   |         4 -> "Low"
+#    3 -> "Middle"  |   5, 6, 7 -> "Very Low"
+
+coll.pred_tab <- collapse.table(
+  pred_tab,
+  Occupation = c("High", "High", "Middle", "Low", "Very Low", "Very Low", "Very Low")
+)
+
+# Associations among predictors
+cmh.rankocc <- CMHtest(margin.table(coll.pred_tab, c("Rank", "Occupation"))) # Test nonzero correlation
+cmh.ranksex <- CMHtest(margin.table(coll.pred_tab, c("Rank", "Sex"))) # Test difference in column means
+cmh.sexocc <- CMHtest(margin.table(coll.pred_tab, c("Sex", "Occupation"))) # Test difference in row means
+
+
+## For inline reporting ##
+chisqStat.cmh.rankocc <- cmh.rankocc$table["cor","Chisq"] |> round(2)
+chisqDF.cmh.rankocc <- cmh.rankocc$table["cor","Df"]
+chisqStat.cmh.ranksex <- cmh.ranksex$table["cmeans","Chisq"] |> round(2)
+chisqDF.cmh.ranksex <- cmh.ranksex$table["cmeans","Df"]
+chisqStat.cmh.sexocc <- cmh.sexocc$table["rmeans","Chisq"] |> round(2)
+chisqDF.cmh.sexocc <- cmh.sexocc$table["rmeans","Df"]
+pchisq.cmh.sexocc <- cmh.sexocc$table["rmeans","Prob"] |> round(2) |> no_lead_zero()
+```
+
+
+
+\qquad Associations among predictors were first analyzed through a pairwise mosaic display, with the result provided in Figure 4.
+
+\qquad From Figure 4, it can be seen that a paternal `Occupation` status of $1$ and $2$ have very similar patterns of associations within each predictor. Likewise, paternal `Occupation` status of $5$, $6$, and $7$ also display very similar patterns of associations within each predictor. Thus, `Occupation` categories $1$ and $2$ were collapsed into a `"High"` category, `Occupation` category $3$ was renamed to `"Middle"`, category $4$ was renamed to `"Low"`, and $5$, $6$, and $7$ were
+
+
+
+\textbf{Figure 4}
+
+\textit{Pairwise Mosaic Display of Predictor Variables in the \texttt{Hoyt} Dataset with Occupation Uncollapsed}
+
+```{r figure4, include=TRUE, fig.height=5.75}
+pairs(
+  pred_tab, gp = shading_Friendly,
+      
+  ## Below code assisted by Claude: https://claude.ai/share/919799b9-554b-4d77-8fd4-b30cd338e7d6
+  diag_panel = my_diagonal_mosaic,
+  diag_panel_args = list(labeling = labeling_border(labels = TRUE))
+  ##
+)
+```
+
+\textit{Note.} Diagonal panels show marginal frequencies. Off-diagonal panels show the bivariate marginal relationship between the row and column variables [@DDAR]. Cell Pearson residuals between an absolute value of two and four are lightly shaded, with darker shading corresponding to residuals greater than an absolute value of four. Smaller residuals are left un-shaded.
+
+
+
+collapsed into a `"Very Low"` category.
+
+\qquad After collapsing the `Occupation` variable, statistical tests for association were conducted, taking ordinality into account where possible. To examine the marginal association between `Rank` (ordinal) and `Occupation` (ordinal), collapsing over `Sex` and `Status`, a CMH test was conducted. The result of the CMH test indicated a nonzero correlation between variables, $\chi^2 (`r chisqDF.cmh.rankocc`) = `r chisqStat.cmh.rankocc`, \: p < .001$. To examine the association between `Rank` (ordinal) and `Sex` (nominal), collapsing over `Occupation` and `Status`, a CMH test was conducted. The result of the CMH test indicated that column mean scores differed, $\chi^2 (`r chisqDF.cmh.ranksex`) = `r chisqStat.cmh.ranksex`, \: p < .001$.  To examine the association between `Sex` (nominal) and `Occupation` (ordinal), collapsing over `Rank` and `Status`, a CMH test was conducted. The result of the CMH test indicated that row mean scores did not significantly differ, $\chi^2 (`r chisqDF.cmh.sexocc`) = `r chisqStat.cmh.sexocc`, \: p = `r pchisq.cmh.sexocc`$.
+
+\qquad To examine the size and nature of these associations, the pairwise mosaic display was reconstructed, with the result provided in Figure 5. Examining the mosaic of `Rank` and `Occupation`, the shading depicts a pattern of high rank being associated with high paternal occupation status (and low rank with low paternal occupation status). Examining the mosaic of `Rank` and `Sex`, males were associated with a low rank, whereas females were associated with a high rank. Examining the mosaic of `Occupation` and `Sex`, although the association failed to reach statistical significance, there seems to be much fewer females with fathers of `"Middle"` `Occupation` status than would be expected under a model of independence (where `Sex` and `Occupation` are not associated given `Rank` and `Status`).
+
+
+
+\textit{\textbf{Multiple Correspondence Analysis}}
+
+
+
+```{r mca_stats}
+# Collapse Hoyt table
+coll_Hoyt <- collapse.table(
+  Hoyt, 
+  Occupation = c("High", "High", "Middle", "Low", "Very Low", "Very Low", "Very Low")
+)
+
+# MCA
+mjca.coll_Hoyt <- mjca(coll_Hoyt, lambda = "Burt")
+
+
+## For inline reporting ##
+mjca.hoyt_dim1 <- round(mjca.coll_Hoyt$inertia.e[1] * 100, 2)
+mjca.hoyt_dim2 <- round(mjca.coll_Hoyt$inertia.e[2] * 100, 2)
+```
+
+
+
+\qquad To further explore the nature of the associations between the levels of variables in the
+
+
+
+\textbf{Figure 5}
+
+\textit{Pairwise Mosaic Display of Predictor Variables in the \texttt{Hoyt} Dataset with Occupation Collapsed}
+
+```{r figure5, include=TRUE, fig.height=5.75}
+pairs(
+  coll.pred_tab, gp = shading_Friendly,
+      
+  ## Below code assisted by Claude: https://claude.ai/share/919799b9-554b-4d77-8fd4-b30cd338e7d6
+  diag_panel = my_diagonal_mosaic,
+  diag_panel_args = list(labeling = labeling_border(labels = TRUE, alternate_labels = TRUE))
+  ##
+)
+```
+
+\textit{Note.} Diagonal panels show marginal frequencies. Off-diagonal panels show the bivariate marginal relationship between the row and column variables [@DDAR]. Cell Pearson residuals between an absolute value of two and four are lightly shaded, with darker shading corresponding to residuals greater than an absolute value of four. Smaller residuals are left un-shaded.
+
+
+
+`Hoyt` dataset, an MCA was conducted. The first dimension accounted for $`r mjca.hoyt_dim1` \%$ of the total inertia and the second dimension accounted for $`r mjca.hoyt_dim2` \%$ of the total inertia. With both dimensions combined having accounted for a moderate $`r mjca.hoyt_dim1 + mjca.hoyt_dim2` \%$ of the total inertia, a 2D depiction of the MCA was considered meaningful. Thus, the MCA was plotted using the Burt matrix, with the result displayed in Figure 6. 
+
+\qquad Dimension 1 may be explained by an increasing of "general" status: be it post-high school `Status`, paternal `Occupation` status, or one's `Rank` in their high school class. This is because variable levels retain their ordering along this dimension (with the exception of `"Low"` and `"Middle"` paternal `Occupation` status). Thus, a low score on dimension 1 can be seen to reflect a low "general" status. On the other hand, dimension 2 may be explained by a spectrum from femininity (lower values on dimension 2) to masculinity (higher values on dimension 2). This is because of the acuity of the angle produced by the line connecting the male and female points and the $y$-axis (dimension 2).
+
+\qquad Levels that had highly similar profiles included a post-high school graduate `Status` of `"College"` and a paternal occupation of `"High"`, and a post-graduate `Status` of `"Other"` and a paternal occupation of `"Low"`. Profiles of post-high school graduate `Status`es of `"Job"` and `"School"` were also highly similar.
+
+
+
+\textit{\textbf{Loglinear Model}}
+
+
+
+```{r loglin}
+# Loglms
+joint <- loglm(~Rank*Occupation*Sex + Status, data = coll_Hoyt) # [ROSe][St]
+
+rankstat <- loglm(~Rank*Occupation*Sex + Rank*Status, data = coll_Hoyt) # [ROSe][RSt]
+
+occupstat <- loglm(~Rank*Occupation*Sex + Status*(Rank + Occupation), data = coll_Hoyt) # [ROSe][RSt][OSt]
+
+sexstat <- loglm(~Rank*Occupation*Sex + Status*(Rank + Occupation + Sex), data = coll_Hoyt) # [ROSe][RSt][OSt][SeSt]
+
+statsexocc <- loglm(~Rank*Occupation*Sex + Status*Rank + Status*Sex*Occupation, data = coll_Hoyt) # [ROSe][OStSe][RSt]
+
+statsexrank <- loglm(~Rank*Occupation*Sex + Status*(Sex*Occupation + Occupation*Rank), data = coll_Hoyt) # [ROSe][OStSe][ORSt]
+
+# Model comparison
+loglmComparison <- anova(joint, sexstat, statsexocc, statsexrank)
+
+
+## For inline reporting ##
+lrtStat.joint <- round(joint$lrt, 2)
+lrtDF.joint <- joint$df
+lrtStat.sexstat <- round(sexstat$lrt, 2)
+lrtDF.sexstat <- sexstat$df
+lrtStat.statsexocc <- round(statsexocc$lrt, 2)
+lrtDF.statsexocc <- statsexocc$df
+
+lrt_p.statsexocc <- summary(statsexocc)$tests["Likelihood Ratio", "P(> X^2)"] |> 
+  round(3) |> 
+  no_lead_zero()
+
+lrtStat.statsexrank <- round(statsexrank$lrt, 2)
+lrtDF.statsexrank <- statsexrank$df
+
+lrt_p.statsexrank <- summary(statsexrank)$tests["Likelihood Ratio", "P(> X^2)"] |> 
+  round(3) |> 
+  no_lead_zero()
+
+mod2.deltaG <- loglmComparison["Model 2","Delta(Dev)"] |> round(2)
+mod2.deltaG_df <- loglmComparison["Model 2","Delta(df)"]
+mod3.deltaG <- loglmComparison["Model 3","Delta(Dev)"] |> round(2)
+mod3.deltaG_df <- loglmComparison["Model 3","Delta(df)"]
+mod4.deltaG <- loglmComparison["Model 4","Delta(Dev)"] |> round(2)
+mod4.deltaG_df <- loglmComparison["Model 4","Delta(df)"]
+mod4.deltaG_p <- loglmComparison["Model 4","P(> Delta(Dev)"] |> round(3) |> no_lead_zero()
+sat.deltaG <- loglmComparison["Saturated", "Delta(Dev)"] |> round(2)
+sat.deltaG_df <- loglmComparison["Saturated", "Delta(df)"]
+sat.deltaG_p <- loglmComparison["Saturated","P(> Delta(Dev)"] |> round(3) |> no_lead_zero()
+```
+
+
+
+\qquad To fit a loglinear model to the `Hoyt` dataset (with `Occupation` collapsed), a model of joint independence of `Status` from the predictors (`Rank`, `Occupation`, and `Sex`) was taken as the starting point, with additional associations added until a reasonable fit was obtained. The starting model resulted in a bad fit, $G^2(`r lrtDF.joint`) = `r lrtStat.joint`, \: p < .001$, necessitating the
+
+
+
+\textbf{Figure 6}
+
+\textit{Multiple Correspondence Analysis Plot of the Burt Matrix for the \texttt{Hoyt} Dataset with Occupation Collapsed}
+
+```{r figure6, include=TRUE}
+### BELOW ADAPTED FROM Friendly & Meyer (2016; p. 245), Discrete Data Analysis with R ###
+res <- plot(mjca.coll_Hoyt, labels= 0, pch= ".", cex.lab= 1.2)
+
+# extract factor names and levels
+coords <- data.frame(res$cols, mjca.coll_Hoyt$factors)
+nlev <- mjca.coll_Hoyt$levels.n
+fact <- unique(as.character(coords$factor))
+
+cols <- c("blue", "red", "darkgreen", "black")
+points(coords[,1:2], pch=rep(16:19, nlev), col=rep(cols, nlev), cex=1.2)
+text(coords[,1:2], label=coords$level, col=rep(cols, nlev), pos=3, cex=1.2, xpd=TRUE)
+
+legend(
+  "bottomright", legend= c("Status", "Rank", "Occupation", "Sex"), title= "Factor", 
+  title.col= "black", col = cols, text.col = cols, pch= 16:19, bg= "gray95", cex = 1.2
+)
+```
+
+\textit{Note.} The proximity of points to one another reflects a similarity in response profiles. Adapted from "Discrete Data Analysis with R," by M. Friendly & D. Meyer, 2016, CRC Press, p. 245.
+
+
+
+addition of association terms. Next, all two-way associations between `Status` and each predictor were added, with the model containing these associations still resulting in a bad fit, $G^2(`r lrtDF.sexstat`) = `r lrtStat.sexstat`, \: p < .001$. While a bad fit, this model was a significant improvement over the last, $\Delta G^2(`r mod2.deltaG_df`) = `r mod2.deltaG`, \: p < .001$, Therefore, three-way associations with `Status` were added, the first of which was the association between `Status`, `Sex`, and `Occupation`. Adding this association to the model containing all two-way associations resulted in a poor fit, yet model fit was significantly improved, $G^2(`r lrtDF.statsexocc`) = `r lrtStat.statsexocc`, \: p = `r lrt_p.statsexocc`, \: \Delta G^2(`r mod3.deltaG_df`) = `r mod3.deltaG`, \: p < .001$. Finally, adding an additional three-way association of `Status`, `Sex`, and `Rank` resulted in both a well-fitting model and a significant improvement over the previous model, $G^2(`r lrtDF.statsexrank`) = `r lrtStat.statsexrank`, \: p = `r lrt_p.statsexrank`, \: \Delta G^2(`r mod4.deltaG_df`) = `r mod4.deltaG`, \: p = `r mod4.deltaG_p`$. The saturated model (i.e., the perfectly fitting model containing the four-way association) was not a significant improvement over the obtained model, $\Delta G^2(`r sat.deltaG_df`) = `r sat.deltaG`, \: p = `r sat.deltaG_p`$.
+
+\qquad Therefore, the fitted log-linear model was specified as [`Rank`, `Occupation`, `Sex`][`Status`, `Sex`, `Occupation`][`Status`, `Sex`, `Rank`]. Model fit is visualized in Figure 7 using a "clean" mosaic display [i.e., one with minimal to no shading as a result of plotting a reasonably well-fitting model\; @DDAR]. Because the three-way association of `Status`, `Rank`, and `Occupation` was not necessary for a well-fitting model, there is little evidence it occurred within the data. Additionally, through the model specification, it can be seen that `Sex` moderates the association between `Status` and other predictors (`Rank` and `Occupation`).
+
+
+
+\textbf{Summary}
+
+
+
+\qquad Thus, `Sex` especially appears to play a key role in one's post-high school `Status`, with `Sex` appearing in all three-way associations observed in the fitted loglinear model and corresponding roughly to the second dimension of the MCA. Additionally, `Status` categories
+
+
+
+\textbf{Figure 7}
+
+\textit{Mosaic Display of a Fitted Loglinear Model to the \texttt{Hoyt} Dataset}
+
+```{r figure7, include=TRUE, fig.height = 7}
+mosaic(
+  statsexrank, gp = shading_Friendly, 
+  labeling_args = list(
+    rot_labels = c(right = 360),
+    offset_labels = c(.02, 1, 0.02, 0.02),
+    gp_labels = gpar(fontsize = 8)
+  )
+)
+```
+
+\textit{Note.} The loglinear model displayed was specified as [Rank, Occupation, Sex][Status, Sex, Occupation][Status, Sex, Rank].
+
+
+
+of `"School"` and  `"Job"` are associated with females, given the pattern of residuals in Figure 3 and the location of `Status` levels relative to those of `Sex` in Figure 6. By the same reasoning, `Status` categories of `"College"` and `"Other"` are associated with males.
+
+\qquad In addition, through all available indications, one's paternal `Occupation` status is strongly associated with one's post-high school status, as is one's `Rank` in their graduating class. Those of higher "general" status (see Results, dimension 1 of Figure 6)  attend `"College"`, work a `"Job"`, or attend `"School"` at a greater rate than those of lower "general" status. Furthermore, examining the pattern of residuals in Figures 1 and 2, the `Rank` and `Occupation` categories higher in "general" status have markedly lower rates of the `Status` = `"Other"` category than would be expected under independence. Also, in Figure 6, the `Status` = `"Other"` category is far removed from the other `Status` levels on the "general" status dimension (dimension 1). This suggests that the `"Other"` category is of comparatively low "general" status.
+
+
+
+
+\centerline{\textbf{Question 2: Student Opinions About the Vietnam War (the \texttt{Vietnam} Dataset)}}
+
+
+
+\textbf{Problem Description}
+
+
+
+```{r q2_probdesc}
+data("Vietnam", package = "vcdExtra")
+
+# Capitalize variable names for plots
+viet <- rename(Vietnam, "Sex" = sex, "Year" = year, "Response" = response)
+
+# Male proportions sum to 1 and female proportions sum to 1 within each response category. Preparation for Figure 8.
+respProps_viet <- (
+  viet |> 
+  group_by(Response, Sex) |> 
+  mutate(Proportion = Freq / sum(Freq))
+)
+
+
+## Inline reporting ##
+N <- sum(viet$Freq)
+ns <- viet |> group_by(Sex) |> summarise(n = sum(Freq))
+n_male <- ns$n[2]
+n_female <- ns$n[1]
+
+minmax.respProps <- as.data.frame( # Extract min and max proportions by sex
+  respProps_viet |> 
+    group_by(Sex, Response) |> 
+    summarise(
+      minprop = min(Proportion), 
+      maxprop = max(Proportion)
+    )
+)
+
+min.Fe_A <- minmax.respProps[1,"minprop"] |> round(2) |> no_lead_zero()
+min.Fe_B <- minmax.respProps[2,"minprop"] |> round(2) |> no_lead_zero()
+min.Fe_D <- minmax.respProps[4,"minprop"] |> round(2) |> no_lead_zero()
+max.Fe_A <- minmax.respProps[1,"maxprop"] |> round(2) |> no_lead_zero()
+max.Fe_B <- minmax.respProps[2,"maxprop"] |> round(2) |> no_lead_zero()
+max.Fe_D <- minmax.respProps[4,"maxprop"] |> round(2) |> no_lead_zero()
+min.Ma_D <- minmax.respProps[8,"minprop"] |> round(2) |> no_lead_zero()
+max.Ma_B <- minmax.respProps[6,"maxprop"] |> round(2) |> no_lead_zero()
+max.Ma_C <- minmax.respProps[7,"maxprop"] |> round(2) |> no_lead_zero()
+
+female_yr3rspC_prop <- ( # Proportion of females in year 3 w/ repsponse "C"
+  (
+    respProps_viet |> 
+      filter(Sex == "Female", Response == "C", Year == 3)
+  )$Proportion |>
+    round(2) |>
+    no_lead_zero()
+)
+
+male_yr4rspD_prop <- ( # Proportion of males in year 4 w/ response "D"
+  (
+    respProps_viet |> 
+      filter(Sex == "Male", Response == "D", Year == 4)
+  )$Proportion |>
+    round(2) |>
+    no_lead_zero()
+)
+```
+
+
+
+\qquad The `Vietnam` dataset from the vcdExtra package in R contains a $2 \times 5 \times 4$ contingency table in frequency form [@Aitken; @vcdExtra; @vizcat; @R]. The $N = `r N`$ students are classified by the following variables:
+
+1. One's `Sex`, with levels `"Male"` and `"Female"`.
+1. One's `Year` in school, with five levels (1, 2, ..., 5).
+1. One's `Response` to a survey taken in 1967 of student opinions on the Vietnam war. The levels are ordered and correspond to answers of:
+
+    a. "Defeat North Vietnam by widespread bombing and land invasion" (`Response` = `"A"`).
+    a. "Maintain the present policy" (`Response` = `"B"`).
+    a. "De-escalate military activity, stop bombing, and begin negotiations" (`Response` = `"C"`).
+    a. "Withdraw military forces immediately" (`Response` = `"D"`).
+    
+\qquad A student's opinion regarding the (then ongoing) Vietnam war is plausibly associated with their `Sex` and `Year` in school. Thus, `Response` was taken to be the outcome variable, with `Sex` and `Year` in school as potential predictors. Thus, the following analyses aim to explore, analyze, and model how `Response` is associated with `Sex` and `Year`.
+
+
+
+\textbf{Method}
+
+
+
+\qquad First, to examine the relationship between variables, exploratory plots (line graphs, conditional mosaic plots) were created to show the proportions in each `Response` category by `Sex` and `Year` of study.
+
+\qquad Second, associations between `Response` and each predictor (`Sex` and `Year`) were individually analyzed through CMH tests, taking the ordinality of `Response` and `Year` into account. This was in R (v. 4.5.1) using the vcdExtra package [v. 0.9.1\; @vcdExtra; @R]. Associations were also visualized through mosaic plots, summing over the other variable (e.g., for the mosaic of `Response` and `Year`, `Sex` would be summed over).
+
+\qquad Third, an MCA was conducted to explore the nature of the associations between the levels of all variables. This was done using the ca package (v. 0.71.1) in R [@ca; @R]. The two dimensions that explained the greatest proportion of variance in the data were identified and given possible interpretations.
+
+\qquad Last, a loglinear model was fit to explain the structure of associations between outcome variable `Response` and predictors `Year` and `Sex`. This was done in R using the MASS package [v. 7.3-65\; @mass; @R]. The resulting model was depicted via a mosaic display to provide evidence regarding model fit.
+
+
+
+\textbf{Results}
+
+
+
+\textit{\textbf{Exploratory Plots}}
+
+
+
+\qquad To explore the relationship between `Response`, `Sex`, and `Year`, exploratory plots were created to show the proportion of each `Response` category by `Sex` and `Year` of study. Line graphs of proportions of each `Response` category by `Sex` and `Year` of study are illustrated in Figure 8. In each `Response` category, the male proportions add to 1 and the female proportions add to 1, so as to control for the larger sample size of male participants ($n_{\text{Male}} = `r n_male`, \: n_{\text{Female}} = `r n_female`$). These line graphs were supplemented by a conditional mosaic plot in Figure 9, illustrating the association of `Sex` and `Year` conditioned on `Response`.
+
+\qquad In `Response` category `"A"`, Figure 8 shows that male proportions were relatively uniform around a value of ~$.2$, with a slight decline as `Year` increased. Female proportions were more variable, fluctuating around a value of ~$.2$ with a minimum of $`r min.Fe_A`$ in year 2 and a maximum of $`r max.Fe_A`$ in year 3. This is supported by the corresponding mosaic in Figure 9, where females in year three appeared at a moderately greater rate, and females in year two appeared at a
+
+
+\textbf{Figure 8}
+
+
+
+\textit{Proportions of Each Response Category by Sex and Year in the \texttt{Vietnam} Dataset}
+
+
+
+```{r figure8, include=TRUE}
+ggplot(respProps_viet, aes(x = Year, y = Proportion, fill = Sex, colour = Sex)) + 
+  facet_wrap(vars(Response)) + 
+  geom_point() + 
+  geom_line() +
+  scale_y_continuous(breaks = seq(0, 0.6, 0.1)) +
+  coord_cartesian(ylim = c(0, 0.6)) +
+  labs(subtitle = "Response") +
+  theme(
+    plot.subtitle = element_text(hjust = 0.5),
+    panel.background = element_blank(),
+    panel.border = element_rect()
+  )
+```
+
+
+
+\textit{Note.} Within each response category, the male proportions add to 1 and the female proportions add to 1.
+
+
+
+moderately lower rate than would be expected if `Sex` and `Year` were independent given a `Response` of `"A"`.
+
+
+
+\qquad In `Response` category `"B"`, Figure 8 shows that male proportions from `Year`s 1 through
+
+
+
+\textbf{Figure 9}
+
+\textit{Conditional Mosaic Plot of Sex and Year Given Response in the \texttt{Vietnam} Dataset}
+
+```{r figure9, include=TRUE}
+viet_tab <- as_table(viet, freq = "Freq") # Convert frequency -> table form
+
+cotabplot(
+  ~ Sex + Year | Response, data = viet_tab, 
+  shade = TRUE, gp = shading_Friendly,
+  legend = FALSE
+)
+```
+
+\textit{Note.} Mosaics show the relationship of `Sex` and `Year` conditioned on `Response`. Cell Pearson residuals between an absolute value of two and four are lightly shaded, with darker shading corresponding to residuals greater than an absolute value of four. Smaller residuals are left un-shaded.
+
+
+
+4 were relatively uniform around a value of ~$.18$, with `Year` 5 diverging from this pattern with a larger value of $`r max.Ma_B`$. Female proportions were more variable, fluctuating around a value of ~$.2$ with a minimum of $`r min.Fe_B`$ in `Year` 2 and a maximum of $`r max.Fe_B`$ in `Year` 3. The pattern observed for females in `Response` category `"B"` was a similar pattern to that observed for females in `Response` category `"A"`. In Figure 9, the pattern of residuals for females in `Year` 3 was not atypical; however, females in `Year` 2 appeared at a moderately lower rate than would be expected if `Sex` and `Year` were independent given a `Response` of `"B"`.
+
+\qquad In `Response` category `"C"`, Figure 8 shows that male proportions gradually increased from ~$.1$ to ~$.2$ over `Year`s 1 through 4, with a sharper increase from `Year` 4 to 5 resulting in a maximum male proportion of $`r max.Ma_C`$ in `Year` 5. Females in this `Response` category followed a similar pattern, with a notable deviation in `Year` 3, where the female proportion was `r female_yr3rspC_prop`. Although similar (and excluding `Year` 3), female proportions per-year lay slightly lower than male proportions per-year. Figure 9 supported these observations, with females in `Year` 3 appearing at a much greater rate, females in `Year` 2 at a moderately lower rate, and males in `Year` 3 at a moderately lower rate than would be expected if `Sex` and `Year` were independent given a `Response` of `"C"`.
+
+\qquad  In `Response` category `"D"`, Figure 8 shows that male proportions gradually increased from `r min.Ma_D` to `r male_yr4rspD_prop` over `Year`s 1 through 4, with a sharper increase from `Year` 4 to 5 resulting in a maximum male proportion of `r max.Ma_C` in `Year` 5. Females in this `Response` category followed a different pattern, with a linear-like pattern of increase from a proportion of `r min.Fe_D` in `Year` 2 to a proportion of `r max.Fe_D` in `Year` 5. Females in `Year` 1 diverged from this pattern, exhibiting a similar proportion to females in `Year` 3. Figure 9 indicates that these observed rates were not meaningfully different from what would be expected if `Sex` and `Year` were independent given a `Response` of `"D"`.
+
+\qquad Furthermore, the lines connecting the proportions in Figure 8 revealed a similar pattern between females of `Response` categories `"A"`, `"B"`, and `"C"`, and another pattern that was similar between males of `Response` categories `"C"` and `"D"`. Overall, these figures show that the association between `Sex` and `Year` differs by `Response`. This has implications for the loglinear model constructed later in this section.
+
+
+
+\textit{\textbf{Separate Associations Between Each Predictor and Response}}
+
+
+
+```{r q2_assoc_predResp}
+# Create tables
+tab.viet_sex <- margin.table(viet_tab, margin = c("Sex", "Response"))
+tab.viet_year <- margin.table(viet_tab, margin = c("Year", "Response"))
+
+# Statistical tests for association
+cmh.viet_sex <- CMHtest(tab.viet_sex) # Test row means
+cmh.viet_year <- CMHtest(tab.viet_year) # Test nonzero correlation
+
+## Inline reporting ##
+chisqStat.cmh.viet_sex <- cmh.viet_sex$table["rmeans","Chisq"] |> round(2)
+chisqDF.cmh.viet_sex <- cmh.viet_sex$table["rmeans","Df"]
+chisqStat.cmh.viet_year <- cmh.viet_year$table["cor","Chisq"] |> round(2)
+chisqDF.cmh.viet_year <- cmh.viet_year$table["cor","Df"]
+```
+
+
+
+\qquad To examine the marginal association between `Response` (ordinal) and `Sex` (nominal), collapsed over `Year`, a CMH test was conducted. The result of the CMH test indicated that row mean scores differed, $\chi^2(`r chisqDF.cmh.viet_sex`) = `r chisqStat.cmh.viet_sex`, \: p < .001$. To examine the marginal association between `Response` (ordinal) and `Year` (ordinal), collapsed over `Sex`, a CMH test was conducted. The result of the CMH test indicated a non-zero correlation, $\chi^2(`r chisqDF.cmh.viet_year`) = `r chisqStat.cmh.viet_year`, \: p < .001$. The size and nature of these associations are depicted in Figure 10.
+
+\qquad Referring to the left panel of Figure 10 (the association between `Response` and `Sex`), females had a `Response` of `"C"` at a much greater rate, a `Response` of `"A"` at a much lower rate, and a `Response` of `"B"` or `"D"` at a moderately lower rate than would be expected under a model of independence (where `Response` is conditionally independent of `Sex`, given `Year`). Additionally, males had a `Response` of `"A"` at a moderately greater rate and a `Response` of `"C"` at a moderately lower rate than expected under independence.
+
+\qquad Referring to the right panel of Figure 10 (the association between `Response` and `Year`), there was a pattern where those low in `Year` (1 and 2) had a `Response` of `"A"` at a greater rate, and those high in `Year` (5) had a `Response` of `A` at a lower rate than would be expected
+
+
+
+\textbf{Figure 10}
+
+\textit{Mosaic Displays of Associations Between \texttt{Response} and Each of \texttt{Sex} and \texttt{Year}}
+
+```{r figure10, include=TRUE, fig.show="hold", out.width="50%"}
+mosaic(
+  tab.viet_sex, shade = TRUE, gp = shading_Friendly,
+  main = "Association Between Response and Sex,\nSummed Over Year"
+)
+mosaic(
+  tab.viet_year, shade = TRUE, gp = shading_Friendly,
+  main = "Association Between Response and Year,\nSummed Over Sex"
+)
+```
+
+\textit{Note.} The left panel shows the marginal association between `Response` and `Sex`, collapsed over `Year`. The right panel shows the marginal association between `Response` and `Year`, collapsed over `Sex`.
+
+
+
+under a model of independence (where `Response` is conditionally independent of `Year`, given `Sex`). The opposite was true for the more pacifistic `Response`s of `"C"` and `"D"`; namely, those low in `Year` (1 and 2) had a `Response` of `"C"` or `"D"` at a lower rate, and those high in `Year` (5) had a `Response` of `"C"` or `"D"` at a higher rate than would be expected under a model of independence. Those in `Year` 3 also had a `Response` of `"D"` at a lower rate than expected (with the rest of the residuals being below an absolute value of two). This pattern is reflected in the shading of the mosaic's corners, with opposing magnitudes on the diagonals.
+
+
+
+\textit{\textbf{Multiple Correspondence Analysis}}
+
+
+
+```{r mca_viet}
+mjca.viet_tab <- mjca(viet_tab, lambda = "Burt")
+
+## For inline reporting ##
+mjca.viet_dim1 <- round(mjca.viet_tab$inertia.e[1] * 100, 2)
+mjca.viet_dim2 <- round(mjca.viet_tab$inertia.e[2] * 100, 2)
+```
+
+
+
+\qquad To further explore the nature of the associations between the levels of variables in the `Vietnam` dataset, an MCA was conducted. The first dimension accounted for $`r mjca.viet_dim1` \%$ of the total inertia and the second dimension accounted for $`r mjca.viet_dim2` \%$ of the total inertia. With both dimensions combined having accounted for a moderate $`r mjca.viet_dim1 + mjca.viet_dim2` \%$ of the total inertia, a 2D depiction of the MCA was considered meaningful. Thus, the MCA was plotted using the Burt matrix, with the result displayed in Figure 11. 
+
+\qquad Dimension 1 may be explained as "level of pacifism," with negative values representing violent/escalatory `Response`s (`Response` `"A"`) and positive values representing pacifistic ones (`Response` `"C"` and `"D"`). Further, `Response` `"B"` (a maintenance of present policy) was slightly negative on dimension 1. Students in `Year`s 1 and 2 lay close to `Response` `"A"` on dimension 1, those in `Year` 4 had a near-zero value on dimension 1 (neither violent nor pacifistic), those in `Year` 3 scored slightly positive on dimension 1, and those in `Year` 5 scored moderately positive on dimension 1. Thus, there is both a general pattern of greater `Year` scoring greater on dimension 1. Additionally, Males leaned slightly negative on dimension 1, whereas females scored strongly positive on dimension 1.
+
+\qquad Assigning meaning to dimension 2 is difficult; however, besides `Response` categories `"A"`, `"B"` and `"C"` being near-zero, dimension 2 may represent the degree of association with a `Response` of `"D"` (an immediate withdrawal of troops). This is because the level that has a moderately positive score on dimension 2 (`Year` 5) was previously indicated as differentially selecting `Response` `"D"`, and the opposite was true for levels that scored negative on dimension 2 (`Year` 3, female; see Exploratory Plots, Separate Associations Between Each Predictor and Response).
+
+\qquad Levels that had similar profiles include `Response` `"A"` and `Year`s 1 and 2. `Response`
+
+
+
+\textbf{Figure 11}
+
+\textit{Multiple Correspondence Analysis Plot of the Burt Matrix for the \texttt{Vietnam} Dataset}
+
+```{r figure11, include=TRUE}
+### BELOW ADAPTED FROM Friendly & Meyer (2016; p. 245), Discrete Data Analysis with R ###
+res <- plot(mjca.viet_tab, labels= 0, pch= ".", cex.lab= 1.2)
+
+# extract factor names and levels
+coords <- data.frame(res$cols, mjca.viet_tab$factors)
+nlev <- mjca.viet_tab$levels.n
+fact <- unique(as.character(coords$factor))
+
+cols <- c("blue", "red", "black")
+points(coords[,1:2], pch=rep(16:18, nlev), col=rep(cols, nlev), cex=1.2)
+text(coords[,1:2], label=coords$level, col=rep(cols, nlev), pos=3, cex=1.2, xpd=TRUE)
+
+legend(
+  "topright", legend= c("Sex", "Year", "Response"), title= "Factor", 
+  title.col= "black", col = cols, text.col = cols, pch= 16:18, bg= "gray95", cex = 1.2
+)
+```
+
+\textit{Note.} The proximity of points to one another reflects a similarity in response profiles. Adapted from "Discrete Data Analysis with R," by M. Friendly & D. Meyer, 2016, CRC Press, p. 245.
+
+
+
+`"B"`, males, and students in `Year` 4 also had similar profiles. `Response` `"C"`, `Year` 3, and females had similar profiles but to a lower degree than the previous two clusters.
+
+
+
+\textbf{\textit{Loglinear Model}}
+
+
+
+```{r q2_loglin}
+loglm.viet_simple <- loglm(~(Year*Sex) + Response, data = viet_tab) # [YS][R]
+
+loglm.viet_respYear <- loglm(~(Year*Sex) + Response*Year, data = viet_tab) # [YS][RY]
+
+loglm.viet <- loglm(~(Year*Sex) + Response*(Year + Sex), data = viet_tab) # [YS][RY][RS]; good fit
+
+# Model comparison
+loglmComp.viet <- anova(loglm.viet_simple, loglm.viet_respYear, loglm.viet)
+
+
+## Inline reporting ##
+lrtStat.viet_simple <- round(loglm.viet_simple$lrt, 2)
+lrtDF.viet_simple <- loglm.viet_simple$df
+lrtStat.viet_respYear <- round(loglm.viet_respYear$lrt, 2)
+lrtDF.viet_respYear <- loglm.viet_respYear$df
+lrtStat.viet <- round(loglm.viet$lrt, 2)
+lrtDF.viet <- loglm.viet$df
+
+lrt_p.viet <- summary(loglm.viet)$tests["Likelihood Ratio", "P(> X^2)"] |> 
+  round(3) |> 
+  no_lead_zero()
+
+mod2vs1.deltaG <- loglmComp.viet["Model 2","Delta(Dev)"] |> round(2)
+mod2vs1.deltaDF <- loglmComp.viet["Model 2","Delta(df)"]
+mod3vs2.deltaG <- loglmComp.viet["Model 3","Delta(Dev)"] |> round(2)
+mod3vs2.deltaDF <- loglmComp.viet["Model 3","Delta(df)"]
+modSatvs3.deltaG <- loglmComp.viet["Saturated","Delta(Dev)"] |> round(2)
+modSatvs3.deltaDF <- loglmComp.viet["Saturated","Delta(df)"]
+modSatvs3.p <- loglmComp.viet["Saturated","P(> Delta(Dev)"] |> round(3) |> no_lead_zero()
+```
+
+
+
+\qquad To fit a loglinear model to the `Vietnam` dataset, a model of joint independence of `Response` from the predictors (`Year` and `Sex`) was taken as the starting point, with additional association terms added until a reasonable fit was obtained. The starting model resulted in a bad fit, $G^2(`r lrtDF.viet_simple`) = `r lrtStat.viet_simple`, \: p < .001$, necessitating the addition of association terms. Next, the association between `Response` and `Year` was added, with this model resulting in a poor, yet significantly improved fit ($G^2(`r lrtDF.viet_respYear`) = `r lrtStat.viet_respYear`, \: p < .001, \Delta G^2(`r mod2vs1.deltaDF`) = `r mod2vs1.deltaG`, \: p < .001$). Last, the model with all two-way associations was fit. This model resulted in both a reasonable and significantly improved fit over the previous model ($G^2(`r lrtDF.viet`) = `r lrtStat.viet`, \: p = `r lrt_p.viet`, \Delta G^2(`r mod3vs2.deltaDF`) = `r mod3vs2.deltaG`, \: p < .001$). The saturated model (i.e., the perfectly fitting model containing the three-way association) was not a significant improvement over the obtained model, $\Delta G^2(`r modSatvs3.deltaDF`) = `r modSatvs3.deltaG`, \: p = `r modSatvs3.p`$. 
+
+\qquad Therefore, the fitted log-linear model was specified as [`Response`, `Sex`][`Response`, `Year`][`Year`, `Sex`]. Model fit is visualized in Figure 12 using a "clean" mosaic display [i.e., one with minimal to no shading as a result of plotting a reasonably well-fitting model\; @DDAR]. Overall, the fitted model indicates that `Response` was separately associated with both `Year` and `Sex` after accounting for the association between predictors `Year` and `Sex`.
+
+\qquad Although the model fit was reasonable, there are reasons to give caution to interpretation. First, Figure 8 and Figure 9 show an interaction-like pattern where the association between `Sex` and `Year` differs by `Response` category. This is suggestive of a three-way association, which was not included in the fitted loglinear model. Second, model fit was
+
+
+
+\textbf{Figure 12}
+
+\textit{Mosaic Display of a Fitted Loglinear Model to the \texttt{Vietnam} Dataset}
+
+```{r figure12, include=TRUE}
+mosaic(loglm.viet, gp = shading_Friendly)
+```
+
+\textit{Note.} The loglinear model displayed was specified as [`Response`, `Sex`][`Response`, `Year`][`Year`, `Sex`].
+
+
+
+"marginally non-significant" ($p = `r lrt_p.viet`$) meaning that a modest increase in sample size had the potential to decrease the *p*-value below the decision boundary ($\alpha = .05$), resulting in a poor-fit.
+
+
+
+\textbf{Summary}
+
+
+
+\qquad In sum, student opinions on the Vietnam War tend to increase in their level of pacifism as `Year` in school increases (see Figures 8, 10, and 11). Additionally, males tended slightly toward non-pacifist responses, whereas females had a tendency to respond pacifistically (see Figures 10 and 11). `Year` and `Sex` exhibited differing patterns of association depending on the `Response` category. Despite this, a reasonable fit was obtained from a loglinear model containing only the two-way associations, suggesting that the three-way association may be small in relative size.
+
+
+
+\centerline{\textbf{Artificial Intelligence (AI) Disclosure}}
+
+
+
+\qquad Claude Sonnet 4.6 was used to remove cell counts from diagonal panels of Figures 4 and 5 [@Claude]. As it turns out, there is an issue in the `vcd::pairs_diagonal_mosaic()` generating function in R, where it does not use the user-specified labeling in the function it returns. After Claude redefined `vcd::pairs_diagonal_mosaic()`, cell counts became removable by using the argument `diag_panel_args = list(labeling = labeling_border(labels = TRUE))` in the `vcd::pairs.table()` function. Plots created with the modified function were compared to those with the unmodified function to verify that the only change was a removal of cell counts from the diagonal panels. See References for a link to the chat.
+
+
+
+\newpage
+\centerline{\textbf{References}}
+<div id="refs"></div>
