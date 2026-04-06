@@ -190,7 +190,7 @@ into this document: https://claude.ai/share/d8fa7701-5775-4ffb-84e2-97c80d2cda9b
 
 \qquad Fourth, this analysis was extended by fitting a loglinear model that included both drug and demographic variables. This was done in \textsf{R} (v. 4.5.3) using the \textsf{MASS} package [v. 7.3-65\; @mass; @R]. The resulting model was depicted via a mosaic display to provide evidence regarding model fit.
 
-\qquad Last, of included drug types in the `DaytonSurvey` dataset, `alcohol` and `marijuana` were the only intoxicants (i.e., `cigarette`s are not intoxicating); moreover, the association between `alcohol` and `marijuana` was thought to have particular importance. To analyze this association in relation to all of the other variables (i.e., `cigarette`, `sex`, and `race`), a main-effects analysis of variance (ANOVA) model was fitted using log odds ratios (LORs) and weights inversely proportional to the square of estimated sampling variances. Interaction effects were not included to avoid near-saturation of the model (a full model would have one less parameter than the number of strata). Additionally, LORs were plotted in a dot-and-whisker-plot, with whiskers corresponding to $95\%$ confidence intervals (CIs).
+\qquad Last, of included drug types in the `DaytonSurvey` dataset, `alcohol` and `marijuana` were the only intoxicants (i.e., `cigarette`s are not intoxicating); moreover, the association between `alcohol` and `marijuana` was thought to have particular importance. To analyze this association in relation to all of the other variables (i.e., `cigarette`, `sex`, and `race`), a main-effects analysis of variance (ANOVA) model was fitted using log odds ratios (LORs) and weights inversely proportional to the estimated sampling variances. Interaction effects were not included to avoid near-saturation of the model (a full model would have one less parameter than the number of strata). Additionally, LORs were plotted in a dot-and-whisker-plot, with whiskers corresponding to $95\%$ confidence intervals (CIs).
 
 <!-- end of first method -->
 
@@ -551,7 +551,7 @@ mosaic(
 
 
 
-CIs were calculated and then illustrated through the dot-and-whisker plot of Figure 6. In addition, a main-effects ANOVA was conducted on these LORs with weights inversely proportional to the square of each estimated sampling variance (see \hyperref[sec:method1]{Method} for the reasoning behind excluding interaction terms).
+CIs were calculated and then illustrated through the dot-and-whisker plot of Figure 6. In addition, a main-effects ANOVA was conducted on these LORs with weights inversely proportional to each estimated sampling variance (see \hyperref[sec:method1]{Method} for the reasoning behind excluding interaction terms).
 
 \qquad With white female students that have used `cigarette`s as the reference category, the model intercept (the mean of the reference category) was significantly different from zero, $\hat{\beta}_0 = `r beta0.df_lors`, \: 95\% \, \text{CI} \: (`r ci_beta0.df_lors[1]`, \: `r ci_beta0.df_lors[2]`), \: t(`r degfree.df_lors`) = `r t_beta0.df_lors`, \: p < .001$. With a sample LOR of $`r round_lors[["LOR"]][1]`$, there was a strong association between `alcohol` and `marijuana` use in this category. The effect of `cigarette` use was significant, with abstinence resulting in a relatively strong $`r beta1.df_lors`$ average decrease in the sample LOR ($\hat{\beta}_\text{cigarette = "No"} = `r beta1.df_lors`, \: 95\% \, \text{CI} \: (`r ci_beta1.df_lors[1]`, \: `r ci_beta1.df_lors[2]`),$ 
 
