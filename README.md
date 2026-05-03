@@ -1,34 +1,46 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# my6136 <img src="images/my6136.jpg" height="80px" align="right">
+# my6136: Gavin Klorfine <img src="images/my6136.jpg" height="80px" align="right">
 
 <!-- badges: start -->
 
 <!-- badges: end -->
 
-This GitHub repo provides a template you can use to organize your work
-for [Psy6136: Categorical Data
-Analysis](https://friendly.github.io/psy6136/) (or any course). It
-provides:
+This GitHub repo is a forked template to organize my work from [Psy6136:
+Categorical Data Analysis](https://friendly.github.io/psy6136/). See
+[Project 2](assign/Project%202/GavinKlorfine-Project2.pdf) for my most
+technical work in the course.
 
-- A reasonable organization of folders for your work. Feel free to add
-  any others
+For my final project in Psy6136, I developed the beginnings of a ‘tidy’
+framework for working with categorical data in R. This work is now a
+part of the [**vcdExtra**](https://github.com/friendly/vcdExtra) R
+package and can be viewed as a
+[vignette](https://friendly.github.io/vcdExtra/articles/a1a-convert-collapse.html).
+I was also listed as second author of the package for this work.
+
+It provided:
+
+- A reasonable organization of folders for my work. I organized mine in
+  the following manner:
 
 <!-- -->
 
     my6136
       ├── assign
-      ├── data
+      │   ├── GavinKlorfine--Assign2_files
+      │   │   └── figure-latex
+      │   ├── Project 1
+      │   │   └── Rough drafts
+      │   └── Project 2
       ├── images
-      ├── notes
       ├── R
       └── tutorials
 
 - Some templates for using Rmarkdown in assignments or projects and also
   for setting up R scripts so you “compile” them with
   [knitr](https://yihui.org/knitr/) to produce output in HTML, DOCX,
-  PDF, … The following are provided, just to get you started:
+  PDF, … The following were provided, just to get me started:
 
   - [Assignment template](assign/assign-template.R): Simple template for
     using an R script for an assignment. This appears like this in
@@ -44,6 +56,8 @@ I recommend that you set up an [RStudio
 project](https://support.posit.co/hc/en-us/articles/200526207-Using-RStudio-Projects)
 for your work in the course, where you can organize your notes and work
 on assignments, projects, etc.
+
+***\[done\]***
 
 This repository on GitHub: [my6136](https://github.com/friendly/my6136)
 provides a template for this. You can simply [download the ZIP
@@ -67,11 +81,15 @@ If you don’t yet use GitHub, you can easily [create a GitHub
 account](https://docs.github.com/en/get-started/start-your-journey/creating-an-account-on-github)
 (**highly recommended**: Your future self will thank me!)
 
+***\[done\]***
+
 ## Installing packages
 
 You will need a bunch of R packages for this course. The file
 [`R/install-vcd-packages.R`](R/install-vcd-packages.R) contains the ones
 I recommend. Simply run this in RStudio.
+
+***\[done\]***
 
 ### PDF output
 
@@ -79,6 +97,8 @@ In RStudio, rendering scripts and `.Rmd` files to PDF uses
 [`pandoc`](https://pandoc.org/) to convert to LaTeX `.tex` files and
 then working `LaTeX` installation to convert to PDF. The R package
 [tinytex](https://yihui.org/tinytex/) makes this relatively easy.
+
+***\[installed\]***
 
 <!--
 ### Citations
@@ -93,3 +113,5 @@ For more details on using Git and Github for working with R, see:
   GitHub](https://jennybc.github.io/2014-05-12-ubc/ubc-r/session2.4_github.html)
 - [How to use Git and GitHub with
   R](https://rfortherestofus.com/2021/02/how-to-use-git-github-with-r)
+
+***\[done\]***
