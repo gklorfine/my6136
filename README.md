@@ -19,9 +19,9 @@ package and can be viewed as a
 [vignette](https://friendly.github.io/vcdExtra/articles/a1a-convert-collapse.html).
 I was also listed as second author of the package for this work.
 
-It provided:
+The template provided:
 
-- A reasonable organization of folders for my work. I organized mine in
+- A reasonable organization of folders for my work. I re-organized mine in
   the following manner:
 
 <!-- -->
